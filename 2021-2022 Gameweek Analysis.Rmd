@@ -1,0 +1,263 @@
+---
+title: "2021-2022 Gameweek Analysis"
+author: "Ananda Poudel"
+date: "8/7/2021"
+output: pdf_document
+---
+Libraries
+```{r}
+setwd("/Users/apoudel53/Desktop/ML Practice/Sports Analytics/2021-2022 PL")
+library(rvest)
+library(xml2)
+library(XML)
+library(tidyr)
+library(shiny)
+library(shinythemes)
+library(dplyr)
+library(caret)
+```
+
+
+Head to head visualization
+```{r, echo = FALSE}
+
+url <-
+  "https://fbref.com/en/stathead/matchup/squads/5bfb9659/19538871/Leeds-United-vs-Manchester-United-History#coverage"
+df <- read_html(url) %>%
+  html_nodes("table") %>%
+  html_table(fill = TRUE)
+df1 <- as.data.frame(df[[1]])
+df1 <-
+  df1[which(df1$Score != "" &
+              df1$Score != "Score" & df1$Comp == "Premier League"), ]
+
+
+
+gwviz <- data.frame(home = df1$Home,
+                    away = df1$Away,
+                    score = df1$Score)
+gwviz <-
+  gwviz %>% separate(score,
+                     into = c('Home Score', 'Away Score'),
+                     sep = "–")
+
+ui = navbarPage(
+  "Premier League 2021-2022",
+  theme = shinytheme("flatly"),
+  tabPanel("Head to Head",
+           sidebarLayout(sidebarPanel(
+             h3("Head to Head teams")
+           ),
+           mainPanel(
+             h2("Head to head stats")
+           ))),
+  tabPanel("Individual",
+           h2("Player stats")),
+  tabPanel("Gameweek Team",
+           sidebarPanel(h3(
+             "Gameweek -> Teams -> Statistics"
+           )),
+           mainPanel(h2("Team stats"))),
+  tabPanel("Gameweek Individual",
+           sidebarPanel(h3(
+             "Gameweek -> Individual -> Statistics"
+           )),
+           mainPanel(h2("Individual stats")))
+)
+server = function(input, output) {
+  
+}
+
+shinyApp(ui, server)
+
+```
+
+
+Head to Head scraper
+```{r}
+url <- "https://fbref.com/en/comps/9/11160/schedule/2021-2022-Premier-League-Scores-and-Fixtures" 
+
+df <- read_html(url) %>%
+  html_nodes("td.left a") %>%
+  html_attr('href')
+df <- as.data.frame(df)
+h2hdf <- df[grepl("History", df$df),]
+h2hdf <- as.data.frame(h2hdf)
+
+h2hUrl <- "https://fbref.com/"
+finalDf <- 0
+finalDf <- as.data.frame(finalDf)
+for (i in 1:nrow(h2hdf)) {
+  a <- read_html(paste("https://fbref.com/", h2hdf[i,])) %>%
+    html_nodes("#matches_history_all") %>%
+    html_table()
+  a <- as.data.frame(a[[1]])
+  finalDf <- plyr::rbind.fill(finalDf, a)
+}
+
+#Remove blanks
+finalDf <- finalDf[which(finalDf$Score != ""), ]
+#Remove duplicated games because there are two fixtures for each team so it's going to double up 
+df2 <- unique(finalDf)
+#Only look at premier league dataset
+df2 <- df2[which(df2$Comp == "Premier League"),2:ncol(df2)]
+
+setwd("/Users/apoudel53/Desktop/ML Practice/Sports Analytics/2021-2022 PL/")
+write.csv(df2, "previousGames.csv")
+
+```
+
+Project visualization
+```{r}
+#Previous gameweek stats
+#Overall head to head record
+#Last three games record between them
+#Each teams last three fixtures
+#On the soccer background created, set up formation and depict the information listed above.
+
+
+
+```
+
+
+Project prediction
+```{r}
+###PLAYER####
+#Gather each gameweek data set.
+#Use that model to create a training data set.
+#Option 1: For testing, we can use the average of each player's data and cluster together to see which players have the highest chance of goal creating actions or scoring a goal as well.
+#Option 2: Determine the significant factors by using the p-values after doing regression for the goal creating actions. Use those significant factors
+
+
+#####TEAM####
+#Use opposition average goals conceded as a factor for players goal prediction and score prediction as well.
+
+df <- read.csv("previousGames.csv")
+df <-
+  df %>% separate(Score,
+                     into = c('Home Score', 'Away Score'),
+                     sep = "–")
+df$`Home Score` <- as.numeric(df$`Home Score`)
+df$`Away Score` <- as.numeric(df$`Away Score`)
+df$Date <- as.Date(df$Date)
+
+#Identifying significant factors
+#Divide by looking into different times.
+  #Make one model with all the data
+  #Make another model with data from the last two seasons.
+
+####Prediction based on last two seasons####
+dfLasttwo <- df %>%
+  select(Date, Home, Away, `Home Score`, `Away Score`) %>%
+  filter(Date >= "2019-08-05" & Date <= Sys.Date())
+dfLasttwo$Result <- ifelse(dfLasttwo$`Home Score` > dfLasttwo$`Away Score`, "Home Win",
+                           ifelse(dfLasttwo$`Home Score` < dfLasttwo$`Away Score`, "Away Win",
+                                  "Draw"))
+dfLasttwo$Total <- dfLasttwo$`Home Score` + dfLasttwo$`Away Score`
+dfLasttwo$Result <- as.factor(dfLasttwo$Result)
+dfLasttwo$Home <- as.factor(dfLasttwo$Home)
+dfLasttwo$Away <- as.factor(dfLasttwo$Away)
+
+####poisson distribution##########
+home <- dfLasttwo[which(dfLasttwo$Home == "Tottenham"),]
+away <- dfLasttwo[which(dfLasttwo$Away == "Manchester City"),]
+
+
+homeScorePct <- ppois(c(0,1,2,3), lambda = mean(home$`Home Score`), lower = FALSE)
+homeConcedePct <- ppois(c(0,1,2,3), lambda = mean(home$`Away Score`), lower = FALSE)
+
+awayScorePct <- ppois(c(0,1,2,3), lambda = mean(away$`Away Score`), lower = FALSE)
+awayConcedePct <- ppois(c(0,1,2,3), lambda = mean(away$`Home Score`), lower = FALSE)
+
+homeScorePct
+homeConcedePct
+awayScorePct
+awayConcedePct
+########poisson distribution###########
+
+#######Bayesian theorem############
+#Use poisson distribution and utilize this theorem.
+###########Bayesian theorem##############
+
+dfLasttwo <- dfLasttwo[,c("Home", "Away", "Total")]
+
+a1 <- createDataPartition(dfLasttwo$Total, p=0.8, list = FALSE)
+train1 <- dfLasttwo[a1,]
+test1 <- dfLasttwo[-a1,]
+teams <- data.frame(
+  Home = as.factor("Manchester Utd"),
+  Away = as.factor("Leeds United")
+)
+
+model1 <- train(Total ~., data = train1, method = "lm")
+predict(model1, teams)
+#confusionMatrix(predictions1, test1$Result)
+summary(model1)
+RMSE(test1$Total, predictions1)
+
+x <- rbind(dfLasttwo %>%
+  filter(Home == "Manchester Utd" & Away == "Chelsea"),
+  dfLasttwo %>%
+    filter(Home == "Chelsea" & Away == "Manchester Utd"))
+####Prediction based on all previous seasons###
+dffull <- df %>%
+  select(Home, Away, `Home Score`, `Away Score`)
+dffull$Result <- ifelse(dffull$`Home Score` > dffull$`Away Score`, "Home Win",
+                           ifelse(dffull$`Home Score` < dffull$`Away Score`, "Away Win",
+                                  "Draw"))
+dffull$Total <- df$`Home Score` + df$`Away Score`
+dffull$Result <- as.factor(dffull$Result)
+dffull$Home <- as.factor(dffull$Home)
+dffull$Away <- as.factor(dffull$Away)
+dffull <- dffull[,c("Home", "Away", "Total")]
+
+a2 <- createDataPartition(dffull$Total, p=0.8, list = FALSE)
+train2 <- dffull[a2,]
+test2 <- dffull[-a2,]
+teams <- data.frame(
+  Home = as.factor("Leicester City"),
+  Away = as.factor("Wolves")
+)
+model2 <- train(Total ~., data = train2, method = "lm")
+predict(model2, teams)
+#confusionMatrix(predictions2, test$Result)
+
+RMSE(predictions2, test2$Total)
+
+```
+
+
+Project tactics
+```{r}
+#identify which player would fit perfectly in certain teams based on their tactics 
+  #could use a clustering algorithm based on certain criterias
+    #For example- a team with a target man striker could look into players with the most crossesIntoPenaltyArea
+    # Another example- team focused on applying pressure on opposition half could look into applyingPressure CompletedPct on Attacking Third.
+#We would need to identify different tactics used by managers and create a criteria for each of those tactics to move forward with this project.
+
+```
+
+
+Arsenal scraper
+It will come in handy after games have started so we can collect each gameweek stats.
+```{r}
+
+url <- "https://fbref.com/en/squads/18bb7c10/Arsenal-Stats"
+
+
+#When webscraping, look for the node name on the left side on the window when hovering over the class
+#When writing down the nodes, give space to write the nodes: for example if href is inside "ananda.poudel" and "a", it woud be written as "ananda.poudel a"
+
+df <- read_html(url) %>%
+  html_nodes("td.left.group_start a") %>%
+  html_attr("href")
+
+df <- as.data.frame(df)
+pldf <- df[grepl('Premier-League', df$df),]  
+
+gamesUrl <- "https://fbref.com/"
+
+
+
+```
+
