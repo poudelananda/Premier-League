@@ -15,68 +15,15 @@ library(shiny)
 library(shinythemes)
 library(dplyr)
 library(caret)
-```
-
-
-Head to head visualization
-```{r, echo = FALSE}
-
-url <-
-  "https://fbref.com/en/stathead/matchup/squads/5bfb9659/19538871/Leeds-United-vs-Manchester-United-History#coverage"
-df <- read_html(url) %>%
-  html_nodes("table") %>%
-  html_table(fill = TRUE)
-df1 <- as.data.frame(df[[1]])
-df1 <-
-  df1[which(df1$Score != "" &
-              df1$Score != "Score" & df1$Comp == "Premier League"), ]
-
-
-
-gwviz <- data.frame(home = df1$Home,
-                    away = df1$Away,
-                    score = df1$Score)
-gwviz <-
-  gwviz %>% separate(score,
-                     into = c('Home Score', 'Away Score'),
-                     sep = "–")
-
-ui = navbarPage(
-  "Premier League 2021-2022",
-  theme = shinytheme("flatly"),
-  tabPanel("Head to Head",
-           sidebarLayout(sidebarPanel(
-             h3("Head to Head teams")
-           ),
-           mainPanel(
-             h2("Head to head stats")
-           ))),
-  tabPanel("Individual",
-           h2("Player stats")),
-  tabPanel("Gameweek Team",
-           sidebarPanel(h3(
-             "Gameweek -> Teams -> Statistics"
-           )),
-           mainPanel(h2("Team stats"))),
-  tabPanel("Gameweek Individual",
-           sidebarPanel(h3(
-             "Gameweek -> Individual -> Statistics"
-           )),
-           mainPanel(h2("Individual stats")))
-)
-server = function(input, output) {
-  
-}
-
-shinyApp(ui, server)
-
+library(stringr)
+library(reshape2)
 ```
 
 
 Head to Head scraper
 ```{r}
-url <- "https://fbref.com/en/comps/9/11160/schedule/2021-2022-Premier-League-Scores-and-Fixtures" 
-
+url <- "https://fbref.com/en/comps/9/11160/schedule/2021-2022-Premier-League-Scores-and-Fixtures"    
+ 
 df <- read_html(url) %>%
   html_nodes("td.left a") %>%
   html_attr('href')
@@ -98,35 +45,545 @@ for (i in 1:nrow(h2hdf)) {
 #Remove blanks
 finalDf <- finalDf[which(finalDf$Score != ""), ]
 #Remove duplicated games because there are two fixtures for each team so it's going to double up 
-df2 <- unique(finalDf)
+df2 <- unique(finalDf) 
 #Only look at premier league dataset
 df2 <- df2[which(df2$Comp == "Premier League"),2:ncol(df2)]
 
+currentSeason <- read_html(url) %>%
+  html_nodes("table") %>%
+  html_table()
+currentSeason <- as.data.frame(currentSeason[[1]])
+currentSeason <- currentSeason[which(currentSeason$Score != ""),]
+
 setwd("/Users/apoudel53/Desktop/ML Practice/Sports Analytics/2021-2022 PL/")
 write.csv(df2, "previousGames.csv")
+write.csv(currentSeason, "currentSeason.csv")
 
 ```
 
+Match reports scraper
+```{r}
+#Set gameweek  
+gameweek = 3
+
+teamid <- data.frame(
+  leicester = c("Leicester-City", "a2d435b3"),
+  liverpool = c("Liverpool", "822bd0ba"),
+  everton = c("Everton", "d3fd31cc"),
+  astonVilla = c("Aston-Villa", "8602292d"),
+  arsenal = c("Arsenal", "18bb7c10"),
+  crystalPalace = c("Crystal-Palace", "47c64c55"),
+  leedsUnited = c("Leeds-United", "5bfb9659"),
+  tottenham = c("Tottenham-Hotspur", "361ca564"),
+  chelsea = c("Chelsea", "cff3d9bb"),
+  newcastle = c("Newcastle-United", "b2b47a98"),
+  westHam = c("West-Ham-United","7c21e445"),
+  brighton = c("Brighton-and-Hove-Albion", "d07537b9"),
+  manchesterCity = c("Manchester-City","b8fd03ef"),
+  manchesterUnited = c("Manchester-United", "19538871"),
+  southampton = c("Southampton", "33c895d4"),
+  wolves = c("Wolverhampton-Wanderers", "8cec06e1"),
+  westBrom = c("West-Brom", "60c6b05f"),
+  burnley = c("Burnley", "943e8050"),
+  sheffield = c("Sheffield-United", "1df6b87e"),
+  fulham = c("Fulham", "fd962109"),
+  brentford = c("Brentford", "cd051869"),
+  norwich = c("Norwich-City", "1c781004"),
+  watford = c("Watford", "2abfe087")
+)
+teamid <- t(teamid)
+teamid <- as.data.frame(teamid)
+names(teamid) <- c("Teams", "ID")
+
+url <- "https://fbref.com/en/comps/9/11160/schedule/2021-2022-Premier-League-Scores-and-Fixtures"  
+
+fixtures <- read_html(url) %>%
+  html_nodes("table") %>%
+  html_table()
+fixtures <- as.data.frame(fixtures)
+
+fixlist <- fixtures[which(fixtures$Wk == gameweek & fixtures$Score != " "),]
+fixlist$Home <- gsub("Utd", "United", fixlist$Home)
+fixlist$Away <- gsub("Utd", "United", fixlist$Away)
+fixlist$Home <- gsub("Wolves", "Wolverhampton-Wanderers", fixlist$Home)
+fixlist$Away <- gsub("Wolves", "Wolverhampton-Wanderers", fixlist$Away)
+fixlist$Home <- gsub("Brighton", "Brighton-and-Hove-Albion", fixlist$Home)
+fixlist$Away <- gsub("Brighton", "Brighton-and-Hove-Albion", fixlist$Away)
+fixlist$Home <- gsub("West Ham", "West-Ham-United", fixlist$Home)
+fixlist$Away <- gsub("West Ham", "West-Ham-United", fixlist$Away)
+fixlist$Home <- gsub("Tottenham", "Tottenham-Hotspur", fixlist$Home)
+fixlist$Away <- gsub("Tottenham", "Tottenham-Hotspur", fixlist$Away)
+fixlist$Home <- gsub(" ", "-", fixlist$Home)
+fixlist$Away <- gsub(" ", "-", fixlist$Away)
+
+links <- read_html(url) %>%
+  html_nodes("td.left a") %>%
+  html_attr('href')
+
+links <- as.data.frame(links)
+links <- links[grepl("2021-Premier-League", links$links),]
+links <- as.data.frame(links)
+weekLink <- data.frame(matrix(data = NA, nrow = nrow(fixlist), ncol = 1))
+for (i in 1:nrow(fixlist)) {
+  weekLink[i,1] <- links[grepl(paste(fixlist$Home[i], "-", fixlist$Away[i], sep=""), links$links),]
+}
+
+
+finalSummary <- data.frame(0)
+finalPassing <- data.frame(0) 
+finalPassType <- data.frame(0)
+finalDefense <- data.frame(0)
+finalPossession <- data.frame(0)
+finalMiscellaneous <- data.frame(0)
+finalGK <- data.frame(0)
+
+homeSummary <- read_html(paste("https://fbref.com", weekLink[1,],sep="")) %>%
+    html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Home[1]),2],"_summary",sep="")) %>%
+    html_table()
+homeSummary <- as.data.frame(homeSummary[[1]])
+homeSummary$Team <- fixlist$Home[1]
+
+homePassing <- read_html(paste("https://fbref.com", weekLink[1,],sep="")) %>%
+  html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Home[1]),2],"_passing",sep="")) %>%
+  html_table()
+homePassing <- as.data.frame(homePassing[[1]])
+
+homePassType <- read_html(paste("https://fbref.com", weekLink[1,],sep="")) %>%
+  html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Home[1]),2],"_passing_types",sep="")) %>%
+  html_table()
+homePassType <- as.data.frame(homePassType[[1]])
+
+homeDefense <- read_html(paste("https://fbref.com", weekLink[1,],sep="")) %>%
+  html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Home[1]),2],"_defense",sep="")) %>%
+  html_table()
+homeDefense <- as.data.frame(homeDefense[[1]])
+
+homePossession <- read_html(paste("https://fbref.com", weekLink[1,],sep="")) %>%
+  html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Home[1]),2],"_possession",sep="")) %>%
+  html_table()
+homePossession <- as.data.frame(homePossession[[1]])
+
+homeMiscellaneous <- read_html(paste("https://fbref.com", weekLink[1,],sep="")) %>%
+  html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Home[1]),2],"_misc",sep="")) %>%
+  html_table()
+homeMiscellaneous <- as.data.frame(homeMiscellaneous[[1]])
+
+homeGK <- read_html(paste("https://fbref.com", weekLink[1,],sep="")) %>%
+  html_nodes(paste("#keeper_stats_",teamid[which(teamid$Teams == fixlist$Home[1]),2],sep="")) %>%
+  html_table()
+homeGK <- as.data.frame(homeGK[[1]])
+
+
+awaySummary <- read_html(paste("https://fbref.com", weekLink[1,],sep="")) %>%
+    html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Away[1]),2],"_summary",sep="")) %>%
+    html_table()
+awaySummary <- as.data.frame(awaySummary[[1]])
+awaySummary$Team <- fixlist$Away[1]
+
+awayPassing <- read_html(paste("https://fbref.com", weekLink[1,],sep="")) %>%
+  html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Away[1]),2],"_passing",sep="")) %>%
+  html_table()
+awayPassing <- as.data.frame(awayPassing[[1]])
+
+awayPassType <- read_html(paste("https://fbref.com", weekLink[1,],sep="")) %>%
+  html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Away[1]),2],"_passing_types",sep="")) %>%
+  html_table()
+awayPassType <- as.data.frame(awayPassType[[1]])
+
+awayDefense <- read_html(paste("https://fbref.com", weekLink[1,],sep="")) %>%
+  html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Away[1]),2],"_defense",sep="")) %>%
+  html_table()
+awayDefense <- as.data.frame(awayDefense[[1]])
+
+awayPossession <- read_html(paste("https://fbref.com", weekLink[1,],sep="")) %>%
+  html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Away[1]),2],"_possession",sep="")) %>%
+  html_table()
+awayPossession <- as.data.frame(awayPossession[[1]])
+
+awayMiscellaneous <- read_html(paste("https://fbref.com", weekLink[1,],sep="")) %>%
+  html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Away[1]),2],"_misc",sep="")) %>%
+  html_table()
+awayMiscellaneous <- as.data.frame(awayMiscellaneous[[1]])
+
+awayGK <- read_html(paste("https://fbref.com", weekLink[1,],sep="")) %>%
+  html_nodes(paste("#keeper_stats_",teamid[which(teamid$Teams == fixlist$Away[1]),2],sep="")) %>%
+  html_table()
+awayGK <- as.data.frame(awayGK[[1]])
+
+finalSummary <- rbind(homeSummary, awaySummary)
+finalPassing <- rbind(homePassing, awayPassing)
+finalPassType <- rbind(homePassType, awayPassType)
+finalDefense <- rbind(homeDefense, awayDefense)
+finalPossession <- rbind(homePossession, awayPossession)
+finalMiscellaneous <- rbind(homeMiscellaneous, awayMiscellaneous)
+finalGK <- rbind(homeGK, awayGK)
+for (i in 2:nrow(weekLink)) {
+  homeSummary <- read_html(paste("https://fbref.com", weekLink[i,],sep="")) %>%
+    html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Home[i]),2],"_summary",sep="")) %>%
+    html_table()
+  homeSummary <- as.data.frame(homeSummary[[1]])
+  homeSummary$Team <- fixlist$Home[i]
+  
+  homePassing <- read_html(paste("https://fbref.com", weekLink[i,],sep="")) %>%
+    html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Home[i]),2],"_passing",sep="")) %>%
+    html_table()
+  homePassing <- as.data.frame(homePassing[[1]])
+
+  homePassType <- read_html(paste("https://fbref.com", weekLink[i,],sep="")) %>%
+    html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Home[i]),2],"_passing_types",sep="")) %>%
+    html_table()
+  homePassType <- as.data.frame(homePassType[[1]])
+
+  homeDefense <- read_html(paste("https://fbref.com", weekLink[i,],sep="")) %>%
+    html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Home[i]),2],"_defense",sep="")) %>%
+    html_table()
+  homeDefense <- as.data.frame(homeDefense[[1]])
+
+  homePossession <- read_html(paste("https://fbref.com", weekLink[i,],sep="")) %>%
+    html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Home[i]),2],"_possession",sep="")) %>%
+    html_table()
+  homePossession <- as.data.frame(homePossession[[1]])
+
+  homeMiscellaneous <- read_html(paste("https://fbref.com", weekLink[i,],sep="")) %>%
+    html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Home[i]),2],"_misc",sep="")) %>%
+    html_table()
+  homeMiscellaneous <- as.data.frame(homeMiscellaneous[[1]])
+
+  homeGK <- read_html(paste("https://fbref.com", weekLink[i,],sep="")) %>%
+    html_nodes(paste("#keeper_stats_",teamid[which(teamid$Teams == fixlist$Home[i]),2],sep="")) %>%
+    html_table()
+  homeGK <- as.data.frame(homeGK[[1]])
+  
+  awaySummary <- read_html(paste("https://fbref.com", weekLink[i,],sep="")) %>%
+    html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Away[i]),2],"_summary",sep="")) %>%
+    html_table()
+  awaySummary <- as.data.frame(awaySummary[[1]])
+  awaySummary$Team <- fixlist$Away[i]
+  
+  awayPassing <- read_html(paste("https://fbref.com", weekLink[i,],sep="")) %>%
+    html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Away[i]),2],"_passing",sep="")) %>%
+    html_table()
+  awayPassing <- as.data.frame(awayPassing[[1]])
+
+  awayPassType <- read_html(paste("https://fbref.com", weekLink[i,],sep="")) %>%
+    html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Away[i]),2],"_passing_types",sep="")) %>%
+    html_table()
+  awayPassType <- as.data.frame(awayPassType[[1]])
+
+  awayDefense <- read_html(paste("https://fbref.com", weekLink[i,],sep="")) %>%
+    html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Away[i]),2],"_defense",sep="")) %>%
+    html_table()
+  awayDefense <- as.data.frame(awayDefense[[1]])
+
+  awayPossession <- read_html(paste("https://fbref.com", weekLink[i,],sep="")) %>%
+    html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Away[i]),2],"_possession",sep="")) %>%
+    html_table()
+  awayPossession <- as.data.frame(awayPossession[[1]])
+
+  awayMiscellaneous <- read_html(paste("https://fbref.com", weekLink[i,],sep="")) %>%
+    html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Away[i]),2],"_misc",sep="")) %>%
+    html_table()
+  awayMiscellaneous <- as.data.frame(awayMiscellaneous[[1]])
+
+  awayGK <- read_html(paste("https://fbref.com", weekLink[i,],sep="")) %>%
+    html_nodes(paste("#keeper_stats_",teamid[which(teamid$Teams == fixlist$Away[i]),2],sep="")) %>%
+    html_table()
+  awayGK <- as.data.frame(awayGK[[1]])
+  
+  finalSummary <- rbind(finalSummary, homeSummary, awaySummary)
+  finalPassing <- rbind(finalPassing, homePassing, awayPassing)
+  finalPassType <- rbind(finalPassType, homePassType, awayPassType)
+  finalDefense <- rbind(finalDefense, homeDefense, awayDefense)
+  finalPossession <- rbind(finalPossession, homePossession, awayPossession)
+  finalMiscellaneous <- rbind(finalMiscellaneous, homeMiscellaneous, awayMiscellaneous)
+  finalGK <- rbind(finalGK, homeGK, awayGK)
+}
+nrow(finalSummary)
+names(finalSummary) <- finalSummary[1,]
+finalSummary <- finalSummary[-grep("Player", finalSummary$Player),]
+
+nrow(finalPassing)
+names(finalPassing) <- finalPassing[1,]
+finalPassing <- finalPassing[-grep("Player", finalPassing$Player),]
+
+nrow(finalPassType)
+names(finalPassType) <- finalPassType[1,]
+finalPassType <- finalPassType[-grep("Player", finalPassType$Player),]
+
+nrow(finalDefense)
+names(finalDefense) <- finalDefense[1,]
+finalDefense <- finalDefense[-grep("Player", finalDefense$Player),]
+
+nrow(finalPossession)
+names(finalPossession) <- finalPossession[1,]
+finalPossession <- finalPossession[-grep("Player", finalPossession$Player),]
+
+nrow(finalMiscellaneous)
+names(finalMiscellaneous) <- finalMiscellaneous[1,]
+finalMiscellaneous <- finalMiscellaneous[-grep("Player", finalMiscellaneous$Player),]
+
+nrow(finalGK)
+names(finalGK) <- finalGK[1,]
+finalGK <- finalGK[-grep("Player", finalGK$Player),]
+
+GW <- data.frame(
+  players = finalSummary[,"Player"],
+  teams = finalSummary[,ncol(finalSummary)],
+  playerNumber = finalSummary[,"#"],
+  nation = finalSummary[,"Nation"],
+  position = finalSummary[,"Pos"],
+  age = finalSummary[,"Age"],
+  mins = finalSummary[,"Min"],
+  goals = as.numeric(finalSummary[,"Gls"]),
+  assists = as.numeric(finalSummary[,"Ast"]),
+  penalties = as.numeric(finalSummary[,"PK"]),
+  penaltiesAttempted = as.numeric(finalSummary[,"PKatt"]),
+  shots = as.numeric(finalSummary[,"Sh"]),
+  shotsOnTarget = as.numeric(finalSummary[,"SoT"]),
+  yellowCard = as.numeric(finalSummary[,"CrdY"]),
+  redCard = as.numeric(finalSummary[,"CrdR"]),
+  shotCreatingActions = as.numeric(finalSummary[,"SCA"]),
+  goalCreatingActions = as.numeric(finalSummary[,"GCA"]),
+  totalPassCompleted = as.numeric(finalPassing[,7]),
+  totalPassAttempted = as.numeric(finalPassing[,8]),
+  totalPassCompletedPct = as.numeric(finalPassing[,9]),
+  totalProgressiveDistancePassed = as.numeric(finalPassing[,11]),
+  shortPassCompleted = as.numeric(finalPassing[,12]), #passes between 5 and 15 yards
+  shortPassAttempted = as.numeric(finalPassing[,13]),
+  shortPassCompletedPct = as.numeric(finalPassing[,14]),
+  mediumPassCompleted = as.numeric(finalPassing[,15]), #passes between 15 and 30 yards
+  mediumPassAttempted = as.numeric(finalPassing[,16]),
+  mediumPassCompletedPct = as.numeric(finalPassing[,17]),
+  longPassCompleted = as.numeric(finalPassing[,18]),#longer than 30 yards
+  longPassAttempted = as.numeric(finalPassing[,19]),
+  longPassCompletedPct = as.numeric(finalPassing[,20]),
+  keyPasses = as.numeric(finalPassing[,23]),#Passes that lead directly to a shot
+  passesIntoFinalThird = as.numeric(finalPassing[,24]),
+  passesIntoPenaltyArea = as.numeric(finalPassing[,25]),
+  crossesIntoPenaltyArea = as.numeric(finalPassing[,26]),
+  progressivePasses = as.numeric(finalPassing[,27]), #Completed passes that move the ball towards the opponent's goal at least 10 yards from its furthest point in the last six passes, or completed passes into the penalty area. Excludes passes from the defending 40% of the pitch
+  liveBallPassAttempt = as.numeric(finalPassType[,"Live"]),
+  deadBallPassAttempt = as.numeric(finalPassType[,"Dead"]),
+  freekickPassAttempt = as.numeric(finalPassType[,"FK"]),
+  throughBalls = as.numeric(finalPassType[,"TB"]),
+  passesUnderPressure = as.numeric(finalPassType[,"Press"]),
+  passSwitches = as.numeric(finalPassType[,"Sw"]),#Passes that travel more than 40 yards of the pitch
+  crosses = as.numeric(finalPassType[,"Crs"]),
+  cornerKicks = as.numeric(finalPassType[,"CK"]),
+  inswingCorner = as.numeric(finalPassType[,"In"]),
+  outswingCorner = as.numeric(finalPassType[,"Out"]),
+  straightCorner = as.numeric(finalPassType[,"Str"]),
+  groundPasses = as.numeric(finalPassType[,"Ground"]),
+  lowPasses = as.numeric(finalPassType[,"Low"]),#leave the ground but below shoulder level
+  highPasses = as.numeric(finalPassType[,"High"]), #passes above shoulder level at peak height
+  leftFootPassesAttempted = as.numeric(finalPassType[,"Left"]),
+  rightFootPassesAttempted = as.numeric(finalPassType[,"Right"]),
+  headPassesAtempted = as.numeric(finalPassType[,"Head"]),
+  throws = as.numeric(finalPassType[,"TI"]),
+  otherPartsPassAttempt = as.numeric(finalPassType[,"Other"]), #Passes attempted using other parts of the body besides head or feet.
+  passesCompleted = as.numeric(finalPassType[,"Cmp"]),
+  offsidePass = as.numeric(finalPassType[,"Off"]),
+  outOfBoundsPass = as.numeric(finalPassType[,"Out"]),
+  interceptedPass = as.numeric(finalPassType[,"Int"]),
+  blockedPass = as.numeric(finalPassType[,"Blocks"]),
+  tacklesAttempted = as.numeric(finalDefense[,7]),
+  tacklesWon = as.numeric(finalDefense[,8]),
+  tacklesInDefensiveThird = as.numeric(finalDefense[,9]),
+  tacklesInMiddleThird = as.numeric(finalDefense[,10]),
+  tacklesInAttackingThird = as.numeric(finalDefense[,11]),
+  dribblersTackled = as.numeric(finalDefense[,12]),
+  dribblersTackleAttempted = as.numeric(finalDefense[,13]),
+  dribblersTacklePct = as.numeric(finalDefense[,14]),
+  dribblersPassedBy = as.numeric(finalDefense[,15]),
+  applyingPressureAttempts = as.numeric(finalDefense[,16]),
+  applyingPressureCompleted = as.numeric(finalDefense[,17]),
+  applyingPressureCompletedPct = as.numeric(finalDefense[,18]),
+  applyingPressureDefensiveThird = as.numeric(finalDefense[,19]),
+  applyingPressureMiddleThird = as.numeric(finalDefense[,20]),
+  applyingPressureAttackingThird = as.numeric(finalDefense[,21]),
+  ballsBlocked = as.numeric(finalDefense[,22]),
+  shotsBlocked = as.numeric(finalDefense[,23]),
+  shotsOnTargetBlocked = as.numeric(finalDefense[,24]),
+  passesBlocked = as.numeric(finalDefense[,25]),
+  interceptions = as.numeric(finalDefense[,26]),
+  clearance = as.numeric(finalDefense[,28]),
+  errors = as.numeric(finalDefense[,29]),  #errors leading to opponents shot
+  touches = as.numeric(finalPossession[,"Touches"]),
+  defensivePenaltyAreaTouches = as.numeric(finalPossession[,"Def Pen"]),
+  defensiveThirdAreaTouches = as.numeric(finalPossession[,"Def 3rd"]),
+  middleThirdAreaTouches = as.numeric(finalPossession[,"Mid 3rd"]),
+  attackingThirdAreaTouches = as.numeric(finalPossession[,"Att 3rd"]),
+  attackingPenaltyAreaTouches = as.numeric(finalPossession[,"Att Pen"]),
+  dribblesCompleted = as.numeric(finalPossession[,"Succ"]),
+  dribblesAttempted = as.numeric(finalPossession[,"Att"]),
+  dribblesCompletedPct = as.numeric(finalPossession[,"Succ%"]),
+  dribbledPastPlayers = as.numeric(finalPossession[,"#Pl"]),
+  megs = as.numeric(finalPossession[,"Megs"]),
+  playerBallControlOnFeet = as.numeric(finalPossession[,"Carries"]),
+  totalDistanceMoved = as.numeric(finalPossession[,"TotDist"]), #Moving anywhere
+  progressiveDistanceMoved = as.numeric(finalPossession[,"PrgDist"]), #Towards opponents goal
+  progressiveCarries = as.numeric(finalPossession[,"Prog"]), #progressing towards opponents goal with moving at least 5 yards.
+  oneThirdCarries = as.numeric(finalPossession[,"1/3"]), #Carrying the ball to 1/3rd of the pitch closest to the goal
+  penaltyBoxCarries = as.numeric(finalPossession[,"CPA"]), #Carrying the ball to the 18yard penalty box
+  
+  passTargets = as.numeric(finalPossession[,"Targ"]), #number of times the player was the target of an attempted pass.
+  receivedPass = as.numeric(finalPossession[,"Rec"]), #number of times the player succesfully received the pass
+  passesReceivedPct = as.numeric(finalPossession[,"Rec%"]), #need to play at least 30 minutes.
+  miscontrol = as.numeric(finalPossession[,"Mis"]), #number of times a player failed when attempting to gain control of the ball
+  disposessed = as.numeric(finalPossession[,"Dis"]), # number of times player loses the ball when tackled by the opposing player
+  fouls = as.numeric(finalMiscellaneous[,"Fls"]),
+  foulsDrawn = as.numeric(finalMiscellaneous[,"Fld"]),
+  offsides = as.numeric(finalMiscellaneous[,"Off"]),
+  penaltyKicksWon = as.numeric(finalMiscellaneous[,"PKwon"]),
+  penaltyKicksConceded = as.numeric(finalMiscellaneous[,"PKcon"]),
+  ownGoals = as.numeric(finalMiscellaneous[,"OG"]),
+  looseBallsRecovered = as.numeric(finalMiscellaneous[,"Recov"]),
+  aerialDuelsWon = as.numeric(finalMiscellaneous[,"Won"]),
+  aerialDuelsLost = as.numeric(finalMiscellaneous[,"Lost"]),
+  aerialDuelsWonPct = as.numeric(finalMiscellaneous[,"Won%"]),
+  gameweek = paste("Gameweek", gameweek)
+)
+
+
+setwd("/Users/apoudel53/Desktop/ML Practice/Sports Analytics/2021-2022 PL/")
+
+write.csv(GW, paste("GW", gameweek, sep="",".csv"))
+combined <- read.csv("combined.csv")[,-1]
+if (max(combined$gameweek) != unique(GW$gameweek)) {
+  combined <- rbind(combined, GW)
+}
+
+write.csv(combined, "combined.csv")
+
+```
+
+Dimensionality Reduction
+```{r}
+gw <- read.csv("combined.csv")[,-1] 
+gw <- read.csv("GW1.csv")[,-1]
+gw[is.na(gw)] <- 0
+x <- gw %>%
+  select(mins:aerialDuelsWonPct)
+pc <- prcomp(x)
+attributes(pc)
+pc$center
+print(pc)
+summary(pc)
+
+loading_scores <- pc$rotation[,c(1:2)]
+stat_scores <- abs(loading_scores)
+stat_scores_ranked <- sort(stat_scores, decreasing = TRUE)
+top_stats <- names(stat_scores_ranked)
+top_stats
+```
+
+
 Project visualization
 ```{r}
-#Previous gameweek stats
+#Previous gameweek stats   
 #Overall head to head record
 #Last three games record between them
 #Each teams last three fixtures
 #On the soccer background created, set up formation and depict the information listed above.
+previousGames <- read.csv("previousGames.csv")
+currentGames <- read.csv("currentSeason.csv")
+combined <- read.csv("combined.csv")
 
+#Tab 1: Overall premier league teams summary.
+  #Display the total statistics based on the statistic type for combined.
+  #Display the total statistics based on the statistic type for each gameweek.
+#Tab 2: Full team information
+  #Display shows the following:
+    #Home and away form for the selected team.
+      #Display it with a vertical graph with the other teams as y-axis.
+      #Shots, shots on target and other information can be shown in the middle between the two graphs as a bar for each side and the number next to it.
+      #
+#Tab 3: Display the best team based on the formation of the team and provide a description why it's the best team for that formation.
 
+ui = fluidPage(
+  titlePanel("Premier League 2021-2022"),
+  sidebarLayout(position = "left",
+    sidebarPanel(
+      conditionalPanel(
+        condition = "input.tabselected == 1",
+        selectInput(
+          inputId = "stats",
+          label = "Type of Statistics",
+          choices = c("Offense", "Passing", "Possession", "Defense")
+        ),
+        radioButtons(
+          inputId = "statOptions",
+          label = "Sort by",
+          choices = c("Goals", "Shots On Target", "Goal Creating Actions", "Shot Creating Actions")
+        )
+      ),
+      conditionalPanel(
+        condition = "input.tabselected == 5",
+        selectInput(
+          inputId = "team",
+          label = "Select Team",
+          choices = unique(combined$teams)
+        ),
+        selectInput(
+          inputId = "player",
+          label = "Select Player",
+          choices = c(" ", unique(combined$players))
+        )
+      )
+    ),
+    mainPanel(
+      tabsetPanel(type = "tabs",
+                  tabPanel("Overall Statistics", value = 1, plotOutput("teamStat")),
+                  tabPanel("Team Information", value = 2, plotOutput("teamInfo")),
+                  tabPanel("Team Information", value = 3, plotOutput("bestSelection")),
+                  tabPanel("Head to Head", value = 4, plotOutput("h2hstat")),
+                  tabPanel("Player Information", value = 5, plotOutput("playerStat")),
+                  id = "tabselected"
+                  )
+    )
+  )
+)
+
+server = function(input, output) {
+  output$teamStat <- renderPlot({
+    if (input$stats == "Offense") {
+      combined$gameweek <- gsub("[^0-9.-]", "", combined$gameweek)
+      combined$gameweek <- as.numeric(combined$gameweek)
+      df <- melt(combined, id.vars = c("gameweek", "teams"), measure.vars = c("goals", "shotsOnTarget", "goalCreatingActions", "shotCreatingActions"))
+      df <- aggregate(df$value, by = list(df$teams, df$gameweek, df$variable), FUN = sum)
+      colnames(df) <- c("teams", "gameweek", "variable", "value")
+      g <- ggplot(data = df, aes(x = variable, y = value, fill = variable)) + geom_bar(stat="identity") + coord_flip()
+      g + facet_wrap(~teams)
+    }
+  })
+  
+  output$playerStat <- renderPlot ({
+    if(input$player == " ") {
+      combined$gameweek <- gsub("[^0-9.-]", "", combined$gameweek)
+      combined$gameweek <- as.numeric(combined$gameweek)
+      df <- combined[which(combined$teams == input$team), ]
+      df <- melt(df, id.vars = c("gameweek", "players"), measure.vars = c("goals", "shotsOnTarget", "goalCreatingActions", "shotCreatingActions"))
+      df <- aggregate(df$value, by = list(df$players, df$gameweek, df$variable), FUN = sum)
+      colnames(df) <- c("players", "gameweek", "variable", "value")
+      g <- ggplot(data = df, aes(x = gameweek, y = value, color = variable)) + geom_line()
+      g + facet_wrap(~players)
+    }
+  })
+    
+}
+
+shinyApp(ui, server)
 
 ```
 
 
 Project prediction
 ```{r}
-###PLAYER####
+###PLAYER#### 
 #Gather each gameweek data set.
 #Use that model to create a training data set.
 #Option 1: For testing, we can use the average of each player's data and cluster together to see which players have the highest chance of goal creating actions or scoring a goal as well.
-#Option 2: Determine the significant factors by using the p-values after doing regression for the goal creating actions. Use those significant factors
+#Option 2: Determine the significant factors by using the p-values after doing regression for the goal creating actions. Use those significant factors for poisson models.
 
 
 #####TEAM####
@@ -150,6 +607,7 @@ df$Date <- as.Date(df$Date)
 dfLasttwo <- df %>%
   select(Date, Home, Away, `Home Score`, `Away Score`) %>%
   filter(Date >= "2019-08-05" & Date <= Sys.Date())
+
 dfLasttwo$Result <- ifelse(dfLasttwo$`Home Score` > dfLasttwo$`Away Score`, "Home Win",
                            ifelse(dfLasttwo$`Home Score` < dfLasttwo$`Away Score`, "Away Win",
                                   "Draw"))
@@ -159,8 +617,8 @@ dfLasttwo$Home <- as.factor(dfLasttwo$Home)
 dfLasttwo$Away <- as.factor(dfLasttwo$Away)
 
 ####poisson distribution##########
-home <- dfLasttwo[which(dfLasttwo$Home == "Tottenham"),]
-away <- dfLasttwo[which(dfLasttwo$Away == "Manchester City"),]
+home <- dfLasttwo[which(dfLasttwo$Home == "Manchester Utd"),]
+away <- dfLasttwo[which(dfLasttwo$Away == "Wolves"),]
 
 
 homeScorePct <- ppois(c(0,1,2,3), lambda = mean(home$`Home Score`), lower = FALSE)
@@ -223,41 +681,6 @@ predict(model2, teams)
 #confusionMatrix(predictions2, test$Result)
 
 RMSE(predictions2, test2$Total)
-
-```
-
-
-Project tactics
-```{r}
-#identify which player would fit perfectly in certain teams based on their tactics 
-  #could use a clustering algorithm based on certain criterias
-    #For example- a team with a target man striker could look into players with the most crossesIntoPenaltyArea
-    # Another example- team focused on applying pressure on opposition half could look into applyingPressure CompletedPct on Attacking Third.
-#We would need to identify different tactics used by managers and create a criteria for each of those tactics to move forward with this project.
-
-```
-
-
-Arsenal scraper
-It will come in handy after games have started so we can collect each gameweek stats.
-```{r}
-
-url <- "https://fbref.com/en/squads/18bb7c10/Arsenal-Stats"
-
-
-#When webscraping, look for the node name on the left side on the window when hovering over the class
-#When writing down the nodes, give space to write the nodes: for example if href is inside "ananda.poudel" and "a", it woud be written as "ananda.poudel a"
-
-df <- read_html(url) %>%
-  html_nodes("td.left.group_start a") %>%
-  html_attr("href")
-
-df <- as.data.frame(df)
-pldf <- df[grepl('Premier-League', df$df),]  
-
-gamesUrl <- "https://fbref.com/"
-
-
 
 ```
 
