@@ -17,12 +17,13 @@ library(dplyr)
 library(caret)
 library(stringr)
 library(reshape2)
+library(psych)
 ```
 
 
 Head to Head scraper
 ```{r}
-url <- "https://fbref.com/en/comps/9/11160/schedule/2021-2022-Premier-League-Scores-and-Fixtures"    
+url <- "https://fbref.com/en/comps/9/11160/schedule/2021-2022-Premier-League-Scores-and-Fixtures"  
  
 df <- read_html(url) %>%
   html_nodes("td.left a") %>%
@@ -54,6 +55,19 @@ currentSeason <- read_html(url) %>%
   html_table()
 currentSeason <- as.data.frame(currentSeason[[1]])
 currentSeason <- currentSeason[which(currentSeason$Score != ""),]
+currentSeason$Wk <- paste("Gameweek", currentSeason$Wk)
+currentSeason$Home <- gsub("Utd", "United", currentSeason$Home)
+currentSeason$Away <- gsub("Utd", "United", currentSeason$Away)
+currentSeason$Home <- gsub("Wolves", "Wolverhampton-Wanderers", currentSeason$Home)
+currentSeason$Away <- gsub("Wolves", "Wolverhampton-Wanderers", currentSeason$Away)
+currentSeason$Home <- gsub("Brighton", "Brighton-and-Hove-Albion", currentSeason$Home)
+currentSeason$Away <- gsub("Brighton", "Brighton-and-Hove-Albion", currentSeason$Away)
+currentSeason$Home <- gsub("West Ham", "West-Ham-United", currentSeason$Home)
+currentSeason$Away <- gsub("West Ham", "West-Ham-United", currentSeason$Away)
+currentSeason$Home <- gsub("Tottenham", "Tottenham-Hotspur", currentSeason$Home)
+currentSeason$Away <- gsub("Tottenham", "Tottenham-Hotspur", currentSeason$Away)
+currentSeason$Home <- gsub(" ", "-", currentSeason$Home)
+currentSeason$Away <- gsub(" ", "-", currentSeason$Away)
 
 setwd("/Users/apoudel53/Desktop/ML Practice/Sports Analytics/2021-2022 PL/")
 write.csv(df2, "previousGames.csv")
@@ -63,8 +77,8 @@ write.csv(currentSeason, "currentSeason.csv")
 
 Match reports scraper
 ```{r}
-#Set gameweek  
-gameweek = 3
+#Set gameweek     
+gameweek = 7  
 
 teamid <- data.frame(
   leicester = c("Leicester-City", "a2d435b3"),
@@ -448,27 +462,83 @@ GW <- data.frame(
 setwd("/Users/apoudel53/Desktop/ML Practice/Sports Analytics/2021-2022 PL/")
 
 write.csv(GW, paste("GW", gameweek, sep="",".csv"))
-combined <- read.csv("combined.csv")[,-1]
+combined <- read.csv("combined.csv") %>% select(players:opposition)
+currentSeason <- read.csv("currentSeason.csv")
+GW$opposition <- 0
+for (i in 1:nrow(GW)) {
+  for (j in 1:nrow(currentSeason)) {
+    if (GW$gameweek[i] == currentSeason$Wk[j]) {
+      if (GW$teams[i] == currentSeason$Home[j]) {
+        GW$opposition[i] = currentSeason$Away[j]
+      }
+      if (GW$teams[i] == currentSeason$Away[j]) {
+        GW$opposition[i] = currentSeason$Home[j]
+      }
+    }
+  }
+}
+
 if (max(combined$gameweek) != unique(GW$gameweek)) {
   combined <- rbind(combined, GW)
 }
+
 
 write.csv(combined, "combined.csv")
 
 ```
 
-Dimensionality Reduction
+Dimensionality Reduction and logistic regression
 ```{r}
-gw <- read.csv("combined.csv")[,-1] 
-gw <- read.csv("GW1.csv")[,-1]
+set.seed(111) 
+gw <- read.csv("combined.csv") %>% select(players:opposition)
+gw$opposition <- as.factor(gw$opposition)
+gw$position <- as.factor(gw$position)
 gw[is.na(gw)] <- 0
-x <- gw %>%
-  select(mins:aerialDuelsWonPct)
-pc <- prcomp(x)
+gwtrain <- gw[gw$gameweek != "Gameweek 4",]
+gwtest <- gw[gw$gameweek == "Gameweek 4",]
+#gw <- read.csv("GW1.csv")[,-1]
+train <- gwtrain %>%
+  select(mins:aerialDuelsWonPct, -goals)
+test <- gwtest %>%
+  select(mins:aerialDuelsWonPct, -goals)
+pc <- prcomp(train, center = TRUE, scale. = TRUE) #scale will normalize the value and calculates the standard deviation, center will make the mean 0
 attributes(pc)
 pc$center
 print(pc)
 summary(pc)
+
+trg <- predict(pc,train)
+# trg = data.frame(trg,
+#                  goals = gwtrain$goals, 
+#                  position = gwtrain$position, 
+#                  opposition = gwtrain$opposition,
+#                  players = gwtrain$players)
+
+trg = data.frame(trg,
+                 goals = gwtrain$goals, 
+                 players = gwtrain$players)
+
+traindf <- trg %>% select(PC1:PC50, goals)
+model <- caret::train(goals ~., traindf, method = "lm")
+summary(model)
+
+avgdf <- 0
+temp <- trg %>% select(PC1:PC50)
+testdf <- data.frame(matrix(data = NA, nrow = length(unique(trg$players)), ncol = ncol(temp)))
+colnames(testdf) <- colnames(temp)
+for (i in 1:length(unique(trg$players))) {
+  avgdf <- trg[trg$players == unique(trg$players)[i],] %>% select(PC1:PC50)
+  testdf[i,] <- avgdf %>% summarise_if(is.numeric, mean) 
+}
+testdf$players <- unique(trg$players)
+# avgdf <- trg[trg$players == "Bruno Fernandes",] %>% select(PC1:PC50)
+# avgdf <- avgdf %>% summarise_if(is.numeric, mean)
+# testdf <- data.frame(avgdf,
+#                      position = as.factor("AM"),
+#                      opposition = as.factor("Leeds-United"))
+a <- round(predict(model,testdf),3)
+x <- data.frame(a, testdf$players)
+x[which(x$a > 0.5),]
 
 loading_scores <- pc$rotation[,c(1:2)]
 stat_scores <- abs(loading_scores)
@@ -480,18 +550,58 @@ top_stats
 
 Project visualization
 ```{r}
-#Previous gameweek stats   
+#Previous gameweek stats    
 #Overall head to head record
 #Last three games record between them
 #Each teams last three fixtures
 #On the soccer background created, set up formation and depict the information listed above.
 previousGames <- read.csv("previousGames.csv")
-currentGames <- read.csv("currentSeason.csv")
+currentSeason <- read.csv("currentSeason.csv")
 combined <- read.csv("combined.csv")
+FW <- c("FW", "FW,RW", "FW,LW", "FW,RM", "FW,LM", "FW,AM", "FW,CM")
+LW <- c("LW", "LW,AM", "LW,LM", "LW,FW", "LW,RW", "LW,DM")
+DM <- c("DM", "DM,AM", "DM,LM", "DM,CM", "DM,RW", "DM,RM", "DM,FW", "DM,FW,AM", "DM,RB")
+WB <- c("WB", "WB,LB", "WB,RB", "WB,LM,CM", "WB,CM,RM", "WB,CB", "WB,AM")
+CB <- c("CB", "CM,DM,CB", "CB,RM", "CB,RB", "CB,DM", "CB,AM", "CB,WB")
+GK <- c("GK")
+AM <- c("AM", "AM,RW", "AM,CM", "AM,LW", "AM,RW,RM", "AM,RM,LM", "AM,FW", "AM,WB", "AM,DM")
+LB <- c("LB", "LB,DM", "LB,WB", "LB,LW,RW", "LB,CB")
+RB <- c("RB", "RB,WB", "RB,CB", "RB,RM,WB", "RB,LB")
+RW <- c("RW", "RW,LW", "RW,RM", "RW,AM", "RW,FW", "RW,DM")
+LM <- c("LM", "LM,AM", "LM,LW", "LM,RM", "LM,LB", "LM,RW", "LM,CM", "LM,FW")
+RM <- c("RM", "RM,LM", "RM,WB", "RM,RW", "RM,CM,LM", "RM,LW", "RM,RB", "RM,FW")
+CM <- c("CM", "CM,DM", "CM,LW", "CM,LM", "CM,RM", "CM,RW", "CM,AM", "CM,RB", "CM,CB")
+#grep("RM",unique(combined$position), value = TRUE)
+combined$Pos <- 0
+combined <- combined %>% mutate(Pos = ifelse(position %in% FW, "FW",
+                                             ifelse(
+                                               position %in% LW, "LW",
+                                               ifelse(position %in% DM, "DM",
+                                                      ifelse(
+                                                        position %in% WB, "WB",
+                                                        ifelse(position %in% CB, "CB",
+                                                               ifelse(
+                                                                 position %in% GK, "GK",
+                                                                 ifelse(position %in% AM, "AM",
+                                                                        ifelse(
+                                                                          position %in% LB, "LB",
+                                                                          ifelse(position %in% RB, "RB",
+                                                                                 ifelse(
+                                                                                   position %in% RW, "RW",
+                                                                                   ifelse(position %in% LM, "LM",
+                                                                                          ifelse(
+                                                                                            position %in% RM, "RM",
+                                                                                            ifelse(position %in% CM, "CM", " ")
+                                                                                          ))
+                                                                                 ))
+                                                                        ))
+                                                               ))
+                                                      ))
+                                             )))
+
 
 #Tab 1: Overall premier league teams summary.
   #Display the total statistics based on the statistic type for combined.
-  #Display the total statistics based on the statistic type for each gameweek.
 #Tab 2: Full team information
   #Display shows the following:
     #Home and away form for the selected team.
@@ -511,11 +621,7 @@ ui = fluidPage(
           label = "Type of Statistics",
           choices = c("Offense", "Passing", "Possession", "Defense")
         ),
-        radioButtons(
-          inputId = "statOptions",
-          label = "Sort by",
-          choices = c("Goals", "Shots On Target", "Goal Creating Actions", "Shot Creating Actions")
-        )
+        dataTableOutput("teamFixtures")
       ),
       conditionalPanel(
         condition = "input.tabselected == 5",
@@ -529,14 +635,61 @@ ui = fluidPage(
           label = "Select Player",
           choices = c(" ", unique(combined$players))
         )
+      ),
+      conditionalPanel(
+        condition = "input.tabselected == 4",
+        selectInput(
+          inputId = "teamsOrPlayers",
+          label = "Select Teams or Players",
+          choices = c(Teams = "Teams", Players = "Players")
+        ),
+        conditionalPanel(
+          condition = "input.teamsOrPlayers == 'Teams'",
+          selectInput(
+            inputId = "h2hTeams1",
+            label = "Select Team 1 to Compare",
+            choices = unique(combined$teams)
+          ),
+          selectInput(
+            inputId = "h2hTeams2",
+            label = "Select Team 2 to Compare",
+            choices = unique(combined$teams)
+          )
+        ),
+        conditionalPanel(
+          condition = "input.teamsOrPlayers == 'Players'  ",
+          selectInput(
+            inputId = "h2hPlayers1",
+            label = "Select Player 1 to Compare",
+            choices = unique(combined$players)
+          ),
+          selectInput(
+            inputId = "h2hPlayers2",
+            label = "Select Player 2 to Compare",
+            choices = unique(combined$players)
+          )
+          
+        )
       )
     ),
     mainPanel(
       tabsetPanel(type = "tabs",
-                  tabPanel("Overall Statistics", value = 1, plotOutput("teamStat")),
+                  tabPanel("Overall Statistics", value = 1, plotOutput("teamStat", click = "teamStatClick",
+                                                                       hover = "teamStatHover", 
+                                                                       brush = "teamStatBrush"),
+                           htmlOutput("teamStatHtml"),
+                           tableOutput("teamStatInfo")),
                   tabPanel("Team Information", value = 2, plotOutput("teamInfo")),
                   tabPanel("Team Information", value = 3, plotOutput("bestSelection")),
-                  tabPanel("Head to Head", value = 4, plotOutput("h2hstat")),
+                  tabPanel("Head to Head", value = 4, fluidRow(splitLayout(
+                    cellWidths = c("50%", "50%"), plotOutput("h2hviz1offense"), plotOutput("h2hviz2offense")
+                  )),fluidRow(splitLayout(
+                    cellWidths = c("50%", "50%"), plotOutput("h2hviz1passing"), plotOutput("h2hviz2passing")
+                  )),fluidRow(splitLayout(
+                    cellWidths = c("50%", "50%"), plotOutput("h2hviz1poss"), plotOutput("h2hviz2poss")
+                  )),fluidRow(splitLayout(
+                    cellWidths = c("50%", "50%"), plotOutput("h2hviz1defense"), plotOutput("h2hviz2defense")
+                  ))),
                   tabPanel("Player Information", value = 5, plotOutput("playerStat")),
                   id = "tabselected"
                   )
@@ -552,10 +705,54 @@ server = function(input, output) {
       df <- melt(combined, id.vars = c("gameweek", "teams"), measure.vars = c("goals", "shotsOnTarget", "goalCreatingActions", "shotCreatingActions"))
       df <- aggregate(df$value, by = list(df$teams, df$gameweek, df$variable), FUN = sum)
       colnames(df) <- c("teams", "gameweek", "variable", "value")
-      g <- ggplot(data = df, aes(x = variable, y = value, fill = variable)) + geom_bar(stat="identity") + coord_flip()
+      g <- ggplot(data = df, aes(x = gameweek, y = value, color = variable)) + geom_point() + geom_line()
       g + facet_wrap(~teams)
     }
   })
+  
+  
+  output$teamStatInfo <- renderTable({
+    if(is.null(input$teamStatClick$x)) return("NULL")
+    else {
+      combined$gameweek <- gsub("[^0-9.-]", "", combined$gameweek)
+      combined$gameweek <- as.numeric(combined$gameweek)
+      df <- melt(combined, id.vars = c("gameweek", "teams", "opposition"), measure.vars = c("goals", "shotsOnTarget", "goalCreatingActions", "shotCreatingActions"))
+      df <- aggregate(df$value, by = list(df$teams, df$gameweek, df$variable, df$opposition), FUN = sum)
+      colnames(df) <- c("teams", "gameweek", "variable", "opposition", "value")
+      
+      df2 <- brushedPoints(df, input$teamStatBrush)
+      df2 <- dcast(df2, variable ~ gameweek, value.var = c("value"))
+      df2
+    }
+  })
+  
+  output$teamFixtures <- renderDataTable({
+    #Return a data table with teams 
+    if(is.null(input$teamStatClick$x)) {
+      colnames(combined)[colnames(combined) == "goals"] = "GLS"
+      colnames(combined)[colnames(combined) == "shotsOnTarget"] = "SOT"
+      colnames(combined)[colnames(combined) == "goalCreatingActions"] = "GCA"
+      colnames(combined)[colnames(combined) == "shotCreatingActions"] = "SCA"
+      df <- melt(combined, id.vars = c("teams"), measure.vars = c("GLS", "SOT", "GCA", "SCA"))
+      df <- aggregate(df$value, by = list(df$teams, df$variable), FUN = sum)
+      colnames(df) <- c("teams", "variable", "value")
+      dcast(df, teams ~ variable, value.var = c("value"))
+    }
+    else {
+      combined$gameweek <- gsub("[^0-9.-]", "", combined$gameweek)
+      combined$gameweek <- as.numeric(combined$gameweek)
+      df <- melt(combined, id.vars = c("gameweek", "teams"), measure.vars = c("goals", "shotsOnTarget", "goalCreatingActions", "shotCreatingActions"))
+      df <- aggregate(df$value, by = list(df$teams, df$gameweek, df$variable), FUN = sum)
+      colnames(df) <- c("teams", "gameweek", "variable", "value")
+      df <- brushedPoints(df, input$teamStatBrush)
+
+      #Set variable to be oppositions
+      df2 <- currentSeason[,c("Wk", "Home", "Score", "Away")]
+      df2$Wk <- gsub("[^0-9.-]", "", df2$Wk)
+      df2[which(df2$Home == df$teams | df2$Away == df$teams),]
+    }
+  })
+  
   
   output$playerStat <- renderPlot ({
     if(input$player == " ") {
@@ -565,8 +762,53 @@ server = function(input, output) {
       df <- melt(df, id.vars = c("gameweek", "players"), measure.vars = c("goals", "shotsOnTarget", "goalCreatingActions", "shotCreatingActions"))
       df <- aggregate(df$value, by = list(df$players, df$gameweek, df$variable), FUN = sum)
       colnames(df) <- c("players", "gameweek", "variable", "value")
-      g <- ggplot(data = df, aes(x = gameweek, y = value, color = variable)) + geom_line()
+      g <- ggplot(data = df, aes(x = gameweek, y = value, color = variable)) + geom_point() + geom_line()
       g + facet_wrap(~players)
+    }
+    
+    if (input$player != " ") {
+      combined$gameweek <- gsub("[^0-9.-]", "", combined$gameweek)
+      combined$gameweek <- as.numeric(combined$gameweek)
+      df1 <- melt(combined, id.vars = c("gameweek", "Pos"), measure.vars = c("goals", "shotsOnTarget", "goalCreatingActions", "shotCreatingActions"))
+      df1 <- aggregate(df1$value, by = list(df1$gameweek, df1$Pos, df1$variable), FUN = mean)
+      colnames(df1) <- c("Gameweek", "Position", "Variable", "Value")
+      
+      df2 <- combined[which(combined$players == input$player),]
+      df2 <- melt(df2, id.vars = c("gameweek", "Pos"), measure.vars = c("goals", "shotsOnTarget", "goalCreatingActions", "shotCreatingActions"))
+      colnames(df2) <- c("Gameweek", "Position", "Variable", "Value")
+      ggplot() + 
+        geom_line(data = df1[which(df1$Position == unique(df2$Position)),], aes(x = Gameweek, y = Value), color = "red") +
+        geom_line(data = df2, aes(x = Gameweek, y = Value), color = "blue") +
+        facet_wrap(~Variable)
+      
+    }
+  })
+  
+  output$h2hviz1offense <- renderPlot ({
+    if(input$teamsOrPlayers == "Players") {
+      colnames(combined)[colnames(combined) == "goals"] = "GLS"
+      colnames(combined)[colnames(combined) == "shotsOnTarget"] = "SOT"
+      colnames(combined)[colnames(combined) == "goalCreatingActions"] = "GCA"
+      colnames(combined)[colnames(combined) == "shotCreatingActions"] = "SCA"
+      df1 <- combined[which(combined$players == input$h2hPlayers1), ]
+      df1 <- melt(df1, id.vars = c("players", "gameweek"), measure.vars = c("GLS", "SOT", "GCA", "SCA"))
+      df1 <- aggregate(df1$value, by = list(df1$players, df1$gameweek, df1$variable), FUN = sum)
+      colnames(df1) <- c("players", "gameweek", "variable", "value")
+      ggplot(data = df1, aes(x = gameweek, y = value, color = variable)) + geom_point() + geom_line() + xlab(paste(input$h2hPlayers1))
+    }
+  })
+  
+  output$h2hviz2offense <- renderPlot ({
+    if(input$teamsOrPlayers == "Players") {
+      colnames(combined)[colnames(combined) == "goals"] = "GLS"
+      colnames(combined)[colnames(combined) == "shotsOnTarget"] = "SOT"
+      colnames(combined)[colnames(combined) == "goalCreatingActions"] = "GCA"
+      colnames(combined)[colnames(combined) == "shotCreatingActions"] = "SCA"
+      df1 <- combined[which(combined$players == input$h2hPlayers2), ]
+      df1 <- melt(df1, id.vars = c("players", "gameweek"), measure.vars = c("GLS", "SOT", "GCA", "SCA"))
+      df1 <- aggregate(df1$value, by = list(df1$players, df1$gameweek, df1$variable), FUN = sum)
+      colnames(df1) <- c("players", "gameweek", "variable", "value")
+      ggplot(data = df1, aes(x = gameweek, y = value, color = variable)) + geom_point() + geom_line() + xlab(paste(input$h2hPlayers2))
     }
   })
     
