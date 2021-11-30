@@ -18,12 +18,616 @@ library(caret)
 library(stringr)
 library(reshape2)
 library(psych)
+library(stringi)
+library(glmnet)
+library(ggplot2)
+```
+
+Data Adjustment
+```{r}
+previousGames <- read.csv("previousGames.csv") 
+currentSeason <- read.csv("currentSeason.csv")
+combined <- read.csv("combined.csv")
+FW <- c("FW", "FW,RW", "FW,LW", "FW,RM", "FW,LM", "FW,AM", "FW,CM")
+LW <- c("LW", "LW,AM", "LW,LM", "LW,FW", "LW,RW", "LW,DM")
+DM <- c("DM", "DM,AM", "DM,LM", "DM,CM", "DM,RW", "DM,RM", "DM,FW", "DM,FW,AM", "DM,RB")
+WB <- c("WB", "WB,LB", "WB,RB", "WB,LM,CM", "WB,CM,RM", "WB,CB", "WB,AM")
+CB <- c("CB", "CM,DM,CB", "CB,RM", "CB,RB", "CB,DM", "CB,AM", "CB,WB")
+GK <- c("GK")
+AM <- c("AM", "AM,RW", "AM,CM", "AM,LW", "AM,RW,RM", "AM,RM,LM", "AM,FW", "AM,WB", "AM,DM")
+LB <- c("LB", "LB,DM", "LB,WB", "LB,LW,RW", "LB,CB")
+RB <- c("RB", "RB,WB", "RB,CB", "RB,RM,WB", "RB,LB")
+RW <- c("RW", "RW,LW", "RW,RM", "RW,AM", "RW,FW", "RW,DM")
+LM <- c("LM", "LM,AM", "LM,LW", "LM,RM", "LM,LB", "LM,RW", "LM,CM", "LM,FW")
+RM <- c("RM", "RM,LM", "RM,WB", "RM,RW", "RM,CM,LM", "RM,LW", "RM,RB", "RM,FW")
+CM <- c("CM", "CM,DM", "CM,LW", "CM,LM", "CM,RM", "CM,RW", "CM,AM", "CM,RB", "CM,CB")
+#grep("RM",unique(combined$position), value = TRUE)
+combined$Pos <- 0
+combined <- combined %>% mutate(Pos = ifelse(position %in% FW, "FW",
+                                             ifelse(
+                                               position %in% LW, "LW",
+                                               ifelse(position %in% DM, "DM",
+                                                      ifelse(
+                                                        position %in% WB, "WB",
+                                                        ifelse(position %in% CB, "CB",
+                                                               ifelse(
+                                                                 position %in% GK, "GK",
+                                                                 ifelse(position %in% AM, "AM",
+                                                                        ifelse(
+                                                                          position %in% LB, "LB",
+                                                                          ifelse(position %in% RB, "RB",
+                                                                                 ifelse(
+                                                                                   position %in% RW, "RW",
+                                                                                   ifelse(position %in% LM, "LM",
+                                                                                          ifelse(
+                                                                                            position %in% RM, "RM",
+                                                                                            ifelse(position %in% CM, "CM", " ")
+                                                                                          ))
+                                                                                 ))
+                                                                        ))
+                                                               ))
+                                                      ))
+                                             )))
+combined$teamFormation <- as.character(combined$teamFormation)
+combined$formationTeam <- sub(".* ", "",combined$teamFormation)
+combined$formationTeam[which(combined$formationTeam == "(4-4-2◆)")] = "(4-4-2)"
+combined$formationTeam[which(combined$formationTeam == "(3-4-3◆)")] = "(3-4-3)"
+combined$formationTeam <- as.factor(combined$formationTeam)
+unique(combined$formationTeam)
+
+combined$oppositionFormation <- as.character(combined$oppositionFormation)
+combined$formationOpp <- sub(".* ", "",combined$oppositionFormation)
+combined$formationOpp[which(combined$formationOpp == "(4-4-2◆)")] = "(4-4-2)"
+combined$formationOpp[which(combined$formationOpp == "(3-4-3◆)")] = "(3-4-3)"
+combined$formationOpp <- as.factor(combined$formationOpp)
+unique(combined$formationOpp)
+
+```
+
+Over Under Goals
+```{r}
+
+```
+
+Project visualization
+```{r}
+#Previous gameweek stats         
+#Overall head to head record 
+#Last three games record between them
+#Each teams last three fixtures
+#On the soccer background created, set up formation and depict the information listed above.
+
+#Tab 1: Overall premier league teams summary.
+  #Display the total statistics based on the statistic type for combined.
+#Tab 2: Full team information
+  #Display shows the following:
+    #Home and away form for the selected team.
+      #Display it with a vertical graph with the other teams as y-axis.
+      #Shots, shots on target and other information can be shown in the middle between the two graphs as a bar for each side and the number next to it.
+      #
+#Tab 3: Display the best team based on the formation of the team and provide a description why it's the best team for that formation.
+
+ui = fluidPage(
+  titlePanel("Premier League 2021-2022"),
+  sidebarLayout(position = "left",
+    sidebarPanel(
+      conditionalPanel(
+        condition = "input.tabselected == 1",
+        selectInput(
+          inputId = "stats",
+          label = "Type of Statistics",
+          choices = c("Offense", "Passing", "Possession", "Defense")
+        ),
+        dataTableOutput("teamFixtures")
+      ),
+      conditionalPanel(
+        condition = "input.tabselected == 2",
+        selectInput(
+          inputId = "team",
+          label = "Select Team",
+          choices = c(" ", unique(combined$teams))
+        ),
+        selectInput(
+          inputId = "opp",
+          label = "Select Opposition",
+          choices = c(" ", unique(combined$teams))
+        )
+      ),
+      conditionalPanel(
+        condition = "input.tabselected == 5",
+        selectInput(
+          inputId = "team",
+          label = "Select Team",
+          choices = unique(combined$teams)
+        ),
+        selectInput(
+          inputId = "player",
+          label = "Select Player",
+          choices = c(" ", unique(combined$players))
+        )
+      ),
+      conditionalPanel(
+        condition = "input.tabselected == 4",
+        selectInput(
+          inputId = "teamsOrPlayers",
+          label = "Select Teams or Players",
+          choices = c(Teams = "Teams", Players = "Players")
+        ),
+        conditionalPanel(
+          condition = "input.teamsOrPlayers == 'Teams'",
+          selectInput(
+            inputId = "h2hTeams1",
+            label = "Select Team 1 to Compare",
+            choices = unique(combined$teams)
+          ),
+          selectInput(
+            inputId = "h2hTeams2",
+            label = "Select Team 2 to Compare",
+            choices = unique(combined$teams)
+          )
+        ),
+        conditionalPanel(
+          condition = "input.teamsOrPlayers == 'Players'  ",
+          selectInput(
+            inputId = "h2hPlayers1",
+            label = "Select Player 1 to Compare",
+            choices = unique(combined$players)
+          ),
+          selectInput(
+            inputId = "h2hPlayers2",
+            label = "Select Player 2 to Compare",
+            choices = unique(combined$players)
+          )
+          
+        )
+      )
+    ),
+    mainPanel(
+      tabsetPanel(type = "tabs",
+                  tabPanel("Overall Statistics", value = 1, plotOutput("teamStat", click = "teamStatClick",
+                                                                       hover = "teamStatHover", 
+                                                                       brush = "teamStatBrush"),
+                           htmlOutput("teamStatHtml"),
+                           tableOutput("teamStatInfo")),
+                  tabPanel("Home Team Information", value = 2, fluidRow(tableOutput("teamInfo")), fluidRow(tableOutput("oppInfo"))),
+                  tabPanel("Not Sure Yet", value = 3, plotOutput("")),
+                  tabPanel("Head to Head", value = 4, fluidRow(splitLayout(
+                    cellWidths = c("50%", "50%"), plotOutput("h2hviz1offense"), plotOutput("h2hviz2offense")
+                  )),fluidRow(splitLayout(
+                    cellWidths = c("50%", "50%"), plotOutput("h2hviz1passing"), plotOutput("h2hviz2passing")
+                  )),fluidRow(splitLayout(
+                    cellWidths = c("50%", "50%"), plotOutput("h2hviz1poss"), plotOutput("h2hviz2poss")
+                  )),fluidRow(splitLayout(
+                    cellWidths = c("50%", "50%"), plotOutput("h2hviz1defense"), plotOutput("h2hviz2defense")
+                  ))),
+                  tabPanel("Player Information", value = 5, plotOutput("playerStat")),
+                  id = "tabselected"
+                  )
+    )
+  )
+)
+
+server = function(input, output) {
+  output$teamStat <- renderPlot({
+    if (input$stats == "Offense") {
+      combined$gameweek <- gsub("[^0-9.-]", "", combined$gameweek)
+      combined$gameweek <- as.numeric(combined$gameweek)
+      df <- melt(combined, id.vars = c("gameweek", "teams"), measure.vars = c("goals", "shots", "shotsOnTarget", "goalCreatingActions", "shotCreatingActions"))
+      df <- aggregate(df$value, by = list(df$teams, df$gameweek, df$variable), FUN = sum)
+      colnames(df) <- c("teams", "gameweek", "variable", "value")
+      g <- ggplot(data = df, aes(x = gameweek, y = value, color = variable)) + geom_point() + geom_line()
+      g + facet_wrap(~teams)
+    }
+  })
+  
+  
+  output$teamStatInfo <- renderTable({
+    if(is.null(input$teamStatClick$x)) return("NULL")
+    else {
+      combined$gameweek <- gsub("[^0-9.-]", "", combined$gameweek)
+      combined$gameweek <- as.numeric(combined$gameweek)
+      df <- melt(combined, id.vars = c("gameweek", "teams", "opposition"), measure.vars = c("goals", "shots", "shotsOnTarget", "goalCreatingActions", "shotCreatingActions"))
+      df <- aggregate(df$value, by = list(df$teams, df$gameweek, df$variable, df$opposition), FUN = sum)
+      colnames(df) <- c("teams", "gameweek", "variable", "opposition", "value")
+      
+      df2 <- brushedPoints(df, input$teamStatBrush)
+      df2 <- dcast(df2, variable ~ gameweek, value.var = c("value"))
+      df2
+    }
+  })
+  
+  output$teamInfo <- renderTable({
+    a <- combined 
+    a <- a %>% select(teams,opposition,teamFormation,oppositionFormation,shots,shotsOnTarget,players,Pos,gameweek)
+    team <- a[a$teams == input$team,]
+    teamSot <- a[a$teams == input$team & a$shotsOnTarget > 0,]
+    teamSot
+  })
+  
+  output$oppInfo <- renderTable({
+    a <- combined 
+    a <- a %>% select(teams,opposition,teamFormation,oppositionFormation,shots,shotsOnTarget,players,Pos,gameweek)
+    opp<- a[a$opposition == input$opp,]
+    oppSot <- a[a$opposition == input$opp & a$shotsOnTarget > 0,]
+    oppSot
+  })
+  
+  output$teamFixtures <- renderDataTable({
+    #Return a data table with teams 
+    if(is.null(input$teamStatClick$x)) {
+      colnames(combined)[colnames(combined) == "goals"] = "GLS"
+      colnames(combined)[colnames(combined) == "shotsOnTarget"] = "SOT"
+      colnames(combined)[colnames(combined) == "goalCreatingActions"] = "GCA"
+      colnames(combined)[colnames(combined) == "shotCreatingActions"] = "SCA"
+      df <- melt(combined, id.vars = c("teams"), measure.vars = c("GLS", "SOT", "GCA", "SCA"))
+      df <- aggregate(df$value, by = list(df$teams, df$variable), FUN = sum)
+      colnames(df) <- c("teams", "variable", "value")
+      dcast(df, teams ~ variable, value.var = c("value"))
+    }
+    else {
+      combined$gameweek <- gsub("[^0-9.-]", "", combined$gameweek)
+      combined$gameweek <- as.numeric(combined$gameweek)
+      df <- melt(combined, id.vars = c("gameweek", "teams"), measure.vars = c("goals", "shotsOnTarget", "goalCreatingActions", "shotCreatingActions"))
+      df <- aggregate(df$value, by = list(df$teams, df$gameweek, df$variable), FUN = sum)
+      colnames(df) <- c("teams", "gameweek", "variable", "value")
+      df <- brushedPoints(df, input$teamStatBrush)
+
+      #Set variable to be oppositions
+      df2 <- currentSeason[,c("Wk", "Home", "Score", "Away")]
+      df2$Wk <- gsub("[^0-9.-]", "", df2$Wk)
+      df2[which(df2$Home == df$teams | df2$Away == df$teams),]
+    }
+  })
+  
+  
+  output$playerStat <- renderPlot ({
+    if(input$player == " ") {
+      combined$gameweek <- gsub("[^0-9.-]", "", combined$gameweek)
+      combined$gameweek <- as.numeric(combined$gameweek)
+      df <- combined[which(combined$teams == input$team), ]
+      df <- melt(df, id.vars = c("gameweek", "players"), measure.vars = c("goals", "shotsOnTarget", "goalCreatingActions", "shotCreatingActions"))
+      df <- aggregate(df$value, by = list(df$players, df$gameweek, df$variable), FUN = sum)
+      colnames(df) <- c("players", "gameweek", "variable", "value")
+      g <- ggplot(data = df, aes(x = gameweek, y = value, color = variable)) + geom_point() + geom_line()
+      g + facet_wrap(~players)
+    }
+    
+    if (input$player != " ") {
+      combined$gameweek <- gsub("[^0-9.-]", "", combined$gameweek)
+      combined$gameweek <- as.numeric(combined$gameweek)
+      df1 <- combined[which(combined$mins > 45),]
+      df1 <- melt(df1, id.vars = c("gameweek", "Pos"), measure.vars = c("goals", "shotsOnTarget", "goalCreatingActions", "shotCreatingActions"))
+      df1 <- aggregate(df1$value, by = list(df1$gameweek, df1$Pos, df1$variable), FUN = mean)
+      colnames(df1) <- c("Gameweek", "Position", "Variable", "Value")
+      
+      df2 <- combined[which(combined$players == input$player),]
+      df2 <- melt(df2, id.vars = c("gameweek", "Pos"), measure.vars = c("goals", "shotsOnTarget", "goalCreatingActions", "shotCreatingActions"))
+      colnames(df2) <- c("Gameweek", "Position", "Variable", "Value")
+      ggplot() + 
+        geom_line(data = df1[which(df1$Position == unique(df2$Position)),], aes(x = Gameweek, y = Value), color = "red") +
+        geom_line(data = df2, aes(x = Gameweek, y = Value), color = "blue") +
+        facet_wrap(~Variable)
+      
+    }
+  })
+  
+  output$h2hviz1offense <- renderPlot ({
+    if(input$teamsOrPlayers == "Players") {
+      colnames(combined)[colnames(combined) == "goals"] = "GLS"
+      colnames(combined)[colnames(combined) == "shotsOnTarget"] = "SOT"
+      colnames(combined)[colnames(combined) == "goalCreatingActions"] = "GCA"
+      colnames(combined)[colnames(combined) == "shotCreatingActions"] = "SCA"
+      df1 <- combined[which(combined$players == input$h2hPlayers1), ]
+      df1 <- melt(df1, id.vars = c("players", "gameweek"), measure.vars = c("GLS", "SOT", "GCA", "SCA"))
+      df1 <- aggregate(df1$value, by = list(df1$players, df1$gameweek, df1$variable), FUN = sum)
+      colnames(df1) <- c("players", "gameweek", "variable", "value")
+      ggplot(data = df1, aes(x = gameweek, y = value, color = variable)) + geom_point() + geom_line() + xlab(paste(input$h2hPlayers1))
+    }
+  })
+  
+  output$h2hviz2offense <- renderPlot ({
+    if(input$teamsOrPlayers == "Players") {
+      colnames(combined)[colnames(combined) == "goals"] = "GLS"
+      colnames(combined)[colnames(combined) == "shotsOnTarget"] = "SOT"
+      colnames(combined)[colnames(combined) == "goalCreatingActions"] = "GCA"
+      colnames(combined)[colnames(combined) == "shotCreatingActions"] = "SCA"
+      df1 <- combined[which(combined$players == input$h2hPlayers2), ]
+      df1 <- melt(df1, id.vars = c("players", "gameweek"), measure.vars = c("GLS", "SOT", "GCA", "SCA"))
+      df1 <- aggregate(df1$value, by = list(df1$players, df1$gameweek, df1$variable), FUN = sum)
+      colnames(df1) <- c("players", "gameweek", "variable", "value")
+      ggplot(data = df1, aes(x = gameweek, y = value, color = variable)) + geom_point() + geom_line() + xlab(paste(input$h2hPlayers2))
+    }
+  })
+    
+}
+
+shinyApp(ui, server)
+
+```
+
+Predict Player Shots
+```{r}
+df <- combined[which(combined$mins > 60),]
+
+df <- combined %>% select(players,teams,opposition, Pos, location, formationTeam, formationOpp, shots, shotsOnTarget)
+# avg <- aggregate(df$shots, by = list(df$teams, df$gameweek), FUN = sum) 
+# colnames(avg) <- c("teams", "gw", "shots")
+# df$avgshots <- 0
+# # df$avgshots <- sapply(df[,c("teams", "gameweek")], function(x) {
+# #   x = as.data.frame(x)
+# #   df$avgshots = avg$shots[which(avg$teams == x$teams & avg$gw == x$gameweek)]
+# # })
+# df <- inner_join(avg, df, by = c("teams", "gw" = "gameweek"))
+
+
+
+#consider average shots on target over the game period as a factor
+train <- df[1:2480,]
+test <- df[2481:nrow(df),]
+train <- df
+test <- data.frame(
+  players = c(""),
+  teams = c(""),
+  opposition = c(""),
+  Pos = c(""),
+  location = c(""),
+  formationTeam = c(""),
+  formationOpp = c("")
+)
+team <- "Brighton-and-Hove-Albion"
+players <- unique(df$players[which(team == df$teams)])
+test[players,] <- NA
+test <- test[-1,]
+test$players <- players
+test$teams <- team
+test$opposition <- "Leeds-United"
+test$location <- "Home"
+test$formationTeam <- "(3-5-2)"
+test$formationOpp <- "(4-2-3-1)"
+tempdf <- df[which(df$teams == team),]
+for (i in 1:nrow(test)) {
+  for (j in 1:nrow(tempdf)) {
+    if (tempdf$players[j] == test$players[i]) {
+      test$Pos[i] = tempdf$Pos[which(tempdf$players == test$players[i])]
+    }
+  }
+}
+
+test2 <- data.frame(
+  players = c(""),
+  teams = c(""),
+  opposition = c(""),
+  Pos = c(""),
+  location = c(""),
+  formationTeam = c(""),
+  formationOpp = c("")
+)
+team <- "Leeds-United"
+players <- unique(df$players[which(team == df$teams)])
+test2[players,] <- NA
+test2 <- test2[-1,]
+test2$players <- players
+test2$teams <- team
+test2$opposition <- "Brighton-and-Hove-Albion"
+test2$location <- "Away"
+test2$formationTeam <- "(4-2-3-1)"
+test2$formationOpp <- "(3-5-2)"
+tempdf <- df[which(df$teams == team),]
+for (i in 1:nrow(test2)) {
+  for (j in 1:nrow(tempdf)) {
+    if (tempdf$players[j] == test2$players[i]) {
+      test2$Pos[i] = tempdf$Pos[which(tempdf$players == test2$players[i])]
+    }
+  }
+}
+#model <- train(shots~opposition*Pos*teams, data = train, method = "lm")
+model <- lm(shots ~ teams+Pos+opposition+location+formationTeam+formationOpp+Pos*formationOpp, data = train)
+#test <- test[-which(test$players == "Alex Telles" | test$players == "Arthur Masuaku"| test$players == "Charlie Goode"| test$players == "Eric Bailly" | test$players == "Keinan Davis"),]
+#a <- c("Álvaro Fernández", "Ashley Fletcher", "Charlie Goode", "Cody Drameh", "Eric Bailly", "Jean-Philippe Gbamin", "Keinan Davis", "Lyanco", "Przemysław Płacheta", "Takumi Minamino", "Alex Telles", "Arthur Masuaku")
+#test <- test %>% filter(!players%in%a)
+pred <- predict(model, test)
+x <- data.frame(test,pred)
+rmse <- RMSE(pred,test$shots)
+rmse
+#x$difference <- round(x$pred - x$shots,3)
+View(x[x$pred > 0.5,])
+a <- x[!duplicated(x$Pos),]
+s <- aggregate(a$pred, by = list(a$teams), FUN = sum)
+View(s)
+
+pred <- predict(model, test2)
+x2 <- data.frame(test2,pred)
+rmse2 <- RMSE(pred,test2$shots)
+rmse2
+#x$difference <- round(x$pred - x$shots,3)
+View(x2[x2$pred > 0.5,])
+a2 <- x2[!duplicated(x2$Pos),]
+s2 <- aggregate(a2$pred, by = list(a2$teams), FUN = sum)
+View(s2)
+```
+
+Predict Overall Shots
+```{r}
+combined$gameweek <- gsub("[^0-9.-]", "", combined$gameweek)
+combined$gameweek <- as.numeric(combined$gameweek)
+df <- combined %>% select(teams,opposition,location, formationTeam, formationOpp, gameweek, shots)
+df$teams <- as.factor(df$teams)
+df$opposition <- as.factor(df$opposition)
+df$location <- as.factor(df$location)
+df2 <- aggregate(df$shots, by = list(df$teams, df$opposition, df$location, df$formationTeam, df$formationOpp, df$gameweek), FUN = sum) 
+colnames(df2) <- colnames(df)
+
+p <- ggplot(data = df2, aes(x = log(shots))) + geom_histogram(binwidth = 0.5)
+p+facet_wrap(~teams)
+plot(df2$teams,df2$shots)
+
+#a <- createDataPartition(df2$shots, p = 0.8, list = FALSE)
+train <- df2[1:220,]
+test <- df2[221:nrow(df2),]
+train <- df2
+test1 <- data.frame(
+  teams = "Newcastle-United",
+  opposition = "Norwich-City",
+  location = "Home",
+  formationTeam = "(4-4-2)",
+  formationOpp = "(4-1-4-1)"
+)
+test2 <- data.frame(
+  teams = "Norwich-City",
+  opposition = "Newcastle-United",
+  location = "Away",
+  formationTeam = "(4-1-4-1)",
+  formationOpp = "(4-4-2)"
+)
+xtrain <- model.matrix(shots~., train)[,-c(6,7)]
+ytrain <- train %>% select(shots) %>% unlist() %>% as.numeric()
+ytest <- test %>% select(shots) %>% unlist() %>% as.numeric()
+xtest <- model.matrix(shots~., test)[,-c(6,7)]
+
+train.control <- trainControl(method = "cv", number = 10)
+model <- train(shots ~ teams+opposition+location+formationTeam+formationOpp+teams*location, data = train,method = "lm", trControl = train.control)
+model <- lm(shots ~ teams+opposition+location+formationTeam+formationOpp+teams*location, data = train)
+summary(model)
+
+
+
+# lasso <- caret::train(y = ytrain, x = data.matrix(xtrain), method = "glmnet", 
+#                       tuneGrid = expand.grid(alpha = 1, lambda = 1))
+# grid = 10^seq(10, -2, length = 100)
+# model <- cv.glmnet(xtrain, ytrain, alpha = 1)
+# model <- glm(shots ~ teams+opposition+location+formationTeam+formationOpp, family = poisson, data = train)
+# 
+# pred <- predict(model, s= model$lambda.min, newx = xtest)
+pred <- predict(model, test1)
+x1 <- data.frame(test1,pred)
+rmse <- RMSE(pred,test1$shots)
+rmse
+#x$difference <- round(x$pred - x$shots,3)
+View(x1)
+pred <- predict(model, test2)
+x2 <- data.frame(test2,pred)
+rmse <- RMSE(pred,test2$shots)
+View(x2)
+```
+
+
+Predict Goals
+```{r}
+
+```
+
+
+Project prediction
+```{r}
+###PLAYER####   
+#Gather each gameweek data set.
+#Use that model to create a training data set.
+#Option 1: For testing, we can use the average of each player's data and cluster together to see which players have the highest chance of goal creating actions or scoring a goal as well.
+#Option 2: Determine the significant factors by using the p-values after doing regression for the goal creating actions. Use those significant factors for poisson models.
+
+
+#####TEAM####
+#Use opposition average goals conceded as a factor for players goal prediction and score prediction as well.
+
+df <- read.csv("previousGames.csv")
+df <-
+  df %>% separate(Score,
+                     into = c('Home Score', 'Away Score'),
+                     sep = "–")
+df$`Home Score` <- as.numeric(df$`Home Score`)
+df$`Away Score` <- as.numeric(df$`Away Score`)
+df$Date <- as.Date(df$Date)
+
+#Identifying significant factors
+#Divide by looking into different times.
+  #Make one model with all the data
+  #Make another model with data from the last two seasons.
+
+####Prediction based on last two seasons####
+dfLasttwo <- df %>%
+  select(Date, Home, Away, `Home Score`, `Away Score`) %>%
+  filter(Date >= "2019-08-05" & Date <= Sys.Date())
+
+dfLasttwo$Result <- ifelse(dfLasttwo$`Home Score` > dfLasttwo$`Away Score`, "Home Win",
+                           ifelse(dfLasttwo$`Home Score` < dfLasttwo$`Away Score`, "Away Win",
+                                  "Draw"))
+dfLasttwo$Total <- dfLasttwo$`Home Score` + dfLasttwo$`Away Score`
+dfLasttwo$Result <- as.factor(dfLasttwo$Result)
+dfLasttwo$Home <- as.factor(dfLasttwo$Home)
+dfLasttwo$Away <- as.factor(dfLasttwo$Away)
+
+####poisson distribution##########
+home <- dfLasttwo[which(dfLasttwo$Home == "Manchester Utd"),]
+away <- dfLasttwo[which(dfLasttwo$Away == "Wolves"),]
+
+
+homeScorePct <- ppois(c(0,1,2,3), lambda = mean(home$`Home Score`), lower = FALSE)
+homeConcedePct <- ppois(c(0,1,2,3), lambda = mean(home$`Away Score`), lower = FALSE)
+
+awayScorePct <- ppois(c(0,1,2,3), lambda = mean(away$`Away Score`), lower = FALSE)
+awayConcedePct <- ppois(c(0,1,2,3), lambda = mean(away$`Home Score`), lower = FALSE)
+
+homeScorePct
+homeConcedePct
+awayScorePct
+awayConcedePct
+########poisson distribution###########
+
+#######Bayesian theorem############
+#Use poisson distribution and utilize this theorem.
+###########Bayesian theorem##############
+
+dfLasttwo <- dfLasttwo[,c("Home", "Away", "Total")]
+
+a1 <- createDataPartition(dfLasttwo$Total, p=0.8, list = FALSE)
+train1 <- dfLasttwo[a1,]
+test1 <- dfLasttwo[-a1,]
+teams <- data.frame(
+  Home = as.factor("Manchester Utd"),
+  Away = as.factor("Leeds United")
+)
+
+model1 <- train(Total ~., data = train1, method = "lm")
+predict(model1, teams)
+#confusionMatrix(predictions1, test1$Result)
+summary(model1)
+RMSE(test1$Total, predictions1)
+
+x <- rbind(dfLasttwo %>%
+  filter(Home == "Manchester Utd" & Away == "Chelsea"),
+  dfLasttwo %>%
+    filter(Home == "Chelsea" & Away == "Manchester Utd"))
+####Prediction based on all previous seasons###
+dffull <- df %>%
+  select(Home, Away, `Home Score`, `Away Score`)
+dffull$Result <- ifelse(dffull$`Home Score` > dffull$`Away Score`, "Home Win",
+                           ifelse(dffull$`Home Score` < dffull$`Away Score`, "Away Win",
+                                  "Draw"))
+dffull$Total <- df$`Home Score` + df$`Away Score`
+dffull$Result <- as.factor(dffull$Result)
+dffull$Home <- as.factor(dffull$Home)
+dffull$Away <- as.factor(dffull$Away)
+dffull <- dffull[,c("Home", "Away", "Total")]
+
+a2 <- createDataPartition(dffull$Total, p=0.8, list = FALSE)
+train2 <- dffull[a2,]
+test2 <- dffull[-a2,]
+teams <- data.frame(
+  Home = as.factor("Leicester City"),
+  Away = as.factor("Wolves")
+)
+model2 <- train(Total ~., data = train2, method = "lm")
+predict(model2, teams)
+#confusionMatrix(predictions2, test$Result)
+
+RMSE(predictions2, test2$Total)
+
 ```
 
 
 Head to Head scraper
 ```{r}
-url <- "https://fbref.com/en/comps/9/11160/schedule/2021-2022-Premier-League-Scores-and-Fixtures"  
+url <- "https://fbref.com/en/comps/9/11160/schedule/2021-2022-Premier-League-Scores-and-Fixtures"      
  
 df <- read_html(url) %>%
   html_nodes("td.left a") %>%
@@ -77,8 +681,8 @@ write.csv(currentSeason, "currentSeason.csv")
 
 Match reports scraper
 ```{r}
-#Set gameweek     
-gameweek = 7  
+#Set gameweek          
+gameweek = 13
 
 teamid <- data.frame(
   leicester = c("Leicester-City", "a2d435b3"),
@@ -111,12 +715,13 @@ names(teamid) <- c("Teams", "ID")
 
 url <- "https://fbref.com/en/comps/9/11160/schedule/2021-2022-Premier-League-Scores-and-Fixtures"  
 
+
 fixtures <- read_html(url) %>%
   html_nodes("table") %>%
   html_table()
 fixtures <- as.data.frame(fixtures)
 
-fixlist <- fixtures[which(fixtures$Wk == gameweek & fixtures$Score != " "),]
+fixlist <- fixtures[which(fixtures$Wk == gameweek & fixtures$Score != ""),]
 fixlist$Home <- gsub("Utd", "United", fixlist$Home)
 fixlist$Away <- gsub("Utd", "United", fixlist$Away)
 fixlist$Home <- gsub("Wolves", "Wolverhampton-Wanderers", fixlist$Home)
@@ -142,7 +747,6 @@ for (i in 1:nrow(fixlist)) {
   weekLink[i,1] <- links[grepl(paste(fixlist$Home[i], "-", fixlist$Away[i], sep=""), links$links),]
 }
 
-
 finalSummary <- data.frame(0)
 finalPassing <- data.frame(0) 
 finalPassType <- data.frame(0)
@@ -151,11 +755,18 @@ finalPossession <- data.frame(0)
 finalMiscellaneous <- data.frame(0)
 finalGK <- data.frame(0)
 
+formation <- read_html(paste("https://fbref.com", weekLink[1,],sep="")) %>%
+  html_nodes("th") %>%
+  html_text()
+
 homeSummary <- read_html(paste("https://fbref.com", weekLink[1,],sep="")) %>%
     html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Home[1]),2],"_summary",sep="")) %>%
     html_table()
 homeSummary <- as.data.frame(homeSummary[[1]])
 homeSummary$Team <- fixlist$Home[1]
+homeSummary$teamFormation <- formation[1]
+homeSummary$oppositionFormation <- formation[3]
+homeSummary$Location <- "Home"
 
 homePassing <- read_html(paste("https://fbref.com", weekLink[1,],sep="")) %>%
   html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Home[1]),2],"_passing",sep="")) %>%
@@ -187,12 +798,18 @@ homeGK <- read_html(paste("https://fbref.com", weekLink[1,],sep="")) %>%
   html_table()
 homeGK <- as.data.frame(homeGK[[1]])
 
+formation <- read_html(paste("https://fbref.com", weekLink[1,],sep="")) %>%
+  html_nodes("th") %>%
+  html_text()
 
 awaySummary <- read_html(paste("https://fbref.com", weekLink[1,],sep="")) %>%
     html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Away[1]),2],"_summary",sep="")) %>%
     html_table()
 awaySummary <- as.data.frame(awaySummary[[1]])
 awaySummary$Team <- fixlist$Away[1]
+awaySummary$teamFormation <- formation[3]
+awaySummary$oppositionFormation <- formation[1]
+awaySummary$Location <- "Away"
 
 awayPassing <- read_html(paste("https://fbref.com", weekLink[1,],sep="")) %>%
   html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Away[1]),2],"_passing",sep="")) %>%
@@ -232,11 +849,18 @@ finalPossession <- rbind(homePossession, awayPossession)
 finalMiscellaneous <- rbind(homeMiscellaneous, awayMiscellaneous)
 finalGK <- rbind(homeGK, awayGK)
 for (i in 2:nrow(weekLink)) {
+  formation <- read_html(paste("https://fbref.com", weekLink[i,],sep="")) %>%
+    html_nodes("th") %>%
+    html_text()
+  
   homeSummary <- read_html(paste("https://fbref.com", weekLink[i,],sep="")) %>%
     html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Home[i]),2],"_summary",sep="")) %>%
     html_table()
   homeSummary <- as.data.frame(homeSummary[[1]])
   homeSummary$Team <- fixlist$Home[i]
+  homeSummary$teamFormation <- formation[1]
+  homeSummary$oppositionFormation <- formation[3]
+  homeSummary$Location <- "Home"
   
   homePassing <- read_html(paste("https://fbref.com", weekLink[i,],sep="")) %>%
     html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Home[i]),2],"_passing",sep="")) %>%
@@ -267,12 +891,15 @@ for (i in 2:nrow(weekLink)) {
     html_nodes(paste("#keeper_stats_",teamid[which(teamid$Teams == fixlist$Home[i]),2],sep="")) %>%
     html_table()
   homeGK <- as.data.frame(homeGK[[1]])
-  
+
   awaySummary <- read_html(paste("https://fbref.com", weekLink[i,],sep="")) %>%
     html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Away[i]),2],"_summary",sep="")) %>%
     html_table()
   awaySummary <- as.data.frame(awaySummary[[1]])
   awaySummary$Team <- fixlist$Away[i]
+  awaySummary$teamFormation <- formation[3]
+  awaySummary$oppositionFormation <- formation[1]
+  awaySummary$Location <- "Away"
   
   awayPassing <- read_html(paste("https://fbref.com", weekLink[i,],sep="")) %>%
     html_nodes(paste("#stats_",teamid[which(teamid$Teams == fixlist$Away[i]),2],"_passing",sep="")) %>%
@@ -342,7 +969,7 @@ finalGK <- finalGK[-grep("Player", finalGK$Player),]
 
 GW <- data.frame(
   players = finalSummary[,"Player"],
-  teams = finalSummary[,ncol(finalSummary)],
+  teams = finalSummary[,fixlist$Home[1]],
   playerNumber = finalSummary[,"#"],
   nation = finalSummary[,"Nation"],
   position = finalSummary[,"Pos"],
@@ -455,16 +1082,25 @@ GW <- data.frame(
   aerialDuelsWon = as.numeric(finalMiscellaneous[,"Won"]),
   aerialDuelsLost = as.numeric(finalMiscellaneous[,"Lost"]),
   aerialDuelsWonPct = as.numeric(finalMiscellaneous[,"Won%"]),
-  gameweek = paste("Gameweek", gameweek)
+  gameweek = paste("Gameweek", gameweek),
+  teamFormation = as.factor(finalSummary[,ncol(finalSummary)-2]),
+  oppositionFormation = as.factor(finalSummary[,ncol(finalSummary)-1]),
+  location = as.factor(finalSummary[,ncol(finalSummary)])
 )
 
 
 setwd("/Users/apoudel53/Desktop/ML Practice/Sports Analytics/2021-2022 PL/")
 
 write.csv(GW, paste("GW", gameweek, sep="",".csv"))
+
+
+
 combined <- read.csv("combined.csv") %>% select(players:opposition)
 currentSeason <- read.csv("currentSeason.csv")
+
+#If adding opposition doesn't work uncomment the following code and select the desired gameweek to append.
 GW$opposition <- 0
+
 for (i in 1:nrow(GW)) {
   for (j in 1:nrow(currentSeason)) {
     if (GW$gameweek[i] == currentSeason$Wk[j]) {
@@ -482,6 +1118,9 @@ if (max(combined$gameweek) != unique(GW$gameweek)) {
   combined <- rbind(combined, GW)
 }
 
+#If adding opposition doesn't work uncoment the following code and run it for the selected gameweek.
+#combined <- combined[-which(combined$gameweek == "Gameweek 13"),]
+#combined <- rbind(combined, GW)
 
 write.csv(combined, "combined.csv")
 
@@ -489,7 +1128,7 @@ write.csv(combined, "combined.csv")
 
 Dimensionality Reduction and logistic regression
 ```{r}
-set.seed(111) 
+set.seed(111)   
 gw <- read.csv("combined.csv") %>% select(players:opposition)
 gw$opposition <- as.factor(gw$opposition)
 gw$position <- as.factor(gw$position)
@@ -545,384 +1184,5 @@ stat_scores <- abs(loading_scores)
 stat_scores_ranked <- sort(stat_scores, decreasing = TRUE)
 top_stats <- names(stat_scores_ranked)
 top_stats
-```
-
-
-Project visualization
-```{r}
-#Previous gameweek stats    
-#Overall head to head record
-#Last three games record between them
-#Each teams last three fixtures
-#On the soccer background created, set up formation and depict the information listed above.
-previousGames <- read.csv("previousGames.csv")
-currentSeason <- read.csv("currentSeason.csv")
-combined <- read.csv("combined.csv")
-FW <- c("FW", "FW,RW", "FW,LW", "FW,RM", "FW,LM", "FW,AM", "FW,CM")
-LW <- c("LW", "LW,AM", "LW,LM", "LW,FW", "LW,RW", "LW,DM")
-DM <- c("DM", "DM,AM", "DM,LM", "DM,CM", "DM,RW", "DM,RM", "DM,FW", "DM,FW,AM", "DM,RB")
-WB <- c("WB", "WB,LB", "WB,RB", "WB,LM,CM", "WB,CM,RM", "WB,CB", "WB,AM")
-CB <- c("CB", "CM,DM,CB", "CB,RM", "CB,RB", "CB,DM", "CB,AM", "CB,WB")
-GK <- c("GK")
-AM <- c("AM", "AM,RW", "AM,CM", "AM,LW", "AM,RW,RM", "AM,RM,LM", "AM,FW", "AM,WB", "AM,DM")
-LB <- c("LB", "LB,DM", "LB,WB", "LB,LW,RW", "LB,CB")
-RB <- c("RB", "RB,WB", "RB,CB", "RB,RM,WB", "RB,LB")
-RW <- c("RW", "RW,LW", "RW,RM", "RW,AM", "RW,FW", "RW,DM")
-LM <- c("LM", "LM,AM", "LM,LW", "LM,RM", "LM,LB", "LM,RW", "LM,CM", "LM,FW")
-RM <- c("RM", "RM,LM", "RM,WB", "RM,RW", "RM,CM,LM", "RM,LW", "RM,RB", "RM,FW")
-CM <- c("CM", "CM,DM", "CM,LW", "CM,LM", "CM,RM", "CM,RW", "CM,AM", "CM,RB", "CM,CB")
-#grep("RM",unique(combined$position), value = TRUE)
-combined$Pos <- 0
-combined <- combined %>% mutate(Pos = ifelse(position %in% FW, "FW",
-                                             ifelse(
-                                               position %in% LW, "LW",
-                                               ifelse(position %in% DM, "DM",
-                                                      ifelse(
-                                                        position %in% WB, "WB",
-                                                        ifelse(position %in% CB, "CB",
-                                                               ifelse(
-                                                                 position %in% GK, "GK",
-                                                                 ifelse(position %in% AM, "AM",
-                                                                        ifelse(
-                                                                          position %in% LB, "LB",
-                                                                          ifelse(position %in% RB, "RB",
-                                                                                 ifelse(
-                                                                                   position %in% RW, "RW",
-                                                                                   ifelse(position %in% LM, "LM",
-                                                                                          ifelse(
-                                                                                            position %in% RM, "RM",
-                                                                                            ifelse(position %in% CM, "CM", " ")
-                                                                                          ))
-                                                                                 ))
-                                                                        ))
-                                                               ))
-                                                      ))
-                                             )))
-
-
-#Tab 1: Overall premier league teams summary.
-  #Display the total statistics based on the statistic type for combined.
-#Tab 2: Full team information
-  #Display shows the following:
-    #Home and away form for the selected team.
-      #Display it with a vertical graph with the other teams as y-axis.
-      #Shots, shots on target and other information can be shown in the middle between the two graphs as a bar for each side and the number next to it.
-      #
-#Tab 3: Display the best team based on the formation of the team and provide a description why it's the best team for that formation.
-
-ui = fluidPage(
-  titlePanel("Premier League 2021-2022"),
-  sidebarLayout(position = "left",
-    sidebarPanel(
-      conditionalPanel(
-        condition = "input.tabselected == 1",
-        selectInput(
-          inputId = "stats",
-          label = "Type of Statistics",
-          choices = c("Offense", "Passing", "Possession", "Defense")
-        ),
-        dataTableOutput("teamFixtures")
-      ),
-      conditionalPanel(
-        condition = "input.tabselected == 5",
-        selectInput(
-          inputId = "team",
-          label = "Select Team",
-          choices = unique(combined$teams)
-        ),
-        selectInput(
-          inputId = "player",
-          label = "Select Player",
-          choices = c(" ", unique(combined$players))
-        )
-      ),
-      conditionalPanel(
-        condition = "input.tabselected == 4",
-        selectInput(
-          inputId = "teamsOrPlayers",
-          label = "Select Teams or Players",
-          choices = c(Teams = "Teams", Players = "Players")
-        ),
-        conditionalPanel(
-          condition = "input.teamsOrPlayers == 'Teams'",
-          selectInput(
-            inputId = "h2hTeams1",
-            label = "Select Team 1 to Compare",
-            choices = unique(combined$teams)
-          ),
-          selectInput(
-            inputId = "h2hTeams2",
-            label = "Select Team 2 to Compare",
-            choices = unique(combined$teams)
-          )
-        ),
-        conditionalPanel(
-          condition = "input.teamsOrPlayers == 'Players'  ",
-          selectInput(
-            inputId = "h2hPlayers1",
-            label = "Select Player 1 to Compare",
-            choices = unique(combined$players)
-          ),
-          selectInput(
-            inputId = "h2hPlayers2",
-            label = "Select Player 2 to Compare",
-            choices = unique(combined$players)
-          )
-          
-        )
-      )
-    ),
-    mainPanel(
-      tabsetPanel(type = "tabs",
-                  tabPanel("Overall Statistics", value = 1, plotOutput("teamStat", click = "teamStatClick",
-                                                                       hover = "teamStatHover", 
-                                                                       brush = "teamStatBrush"),
-                           htmlOutput("teamStatHtml"),
-                           tableOutput("teamStatInfo")),
-                  tabPanel("Team Information", value = 2, plotOutput("teamInfo")),
-                  tabPanel("Team Information", value = 3, plotOutput("bestSelection")),
-                  tabPanel("Head to Head", value = 4, fluidRow(splitLayout(
-                    cellWidths = c("50%", "50%"), plotOutput("h2hviz1offense"), plotOutput("h2hviz2offense")
-                  )),fluidRow(splitLayout(
-                    cellWidths = c("50%", "50%"), plotOutput("h2hviz1passing"), plotOutput("h2hviz2passing")
-                  )),fluidRow(splitLayout(
-                    cellWidths = c("50%", "50%"), plotOutput("h2hviz1poss"), plotOutput("h2hviz2poss")
-                  )),fluidRow(splitLayout(
-                    cellWidths = c("50%", "50%"), plotOutput("h2hviz1defense"), plotOutput("h2hviz2defense")
-                  ))),
-                  tabPanel("Player Information", value = 5, plotOutput("playerStat")),
-                  id = "tabselected"
-                  )
-    )
-  )
-)
-
-server = function(input, output) {
-  output$teamStat <- renderPlot({
-    if (input$stats == "Offense") {
-      combined$gameweek <- gsub("[^0-9.-]", "", combined$gameweek)
-      combined$gameweek <- as.numeric(combined$gameweek)
-      df <- melt(combined, id.vars = c("gameweek", "teams"), measure.vars = c("goals", "shotsOnTarget", "goalCreatingActions", "shotCreatingActions"))
-      df <- aggregate(df$value, by = list(df$teams, df$gameweek, df$variable), FUN = sum)
-      colnames(df) <- c("teams", "gameweek", "variable", "value")
-      g <- ggplot(data = df, aes(x = gameweek, y = value, color = variable)) + geom_point() + geom_line()
-      g + facet_wrap(~teams)
-    }
-  })
-  
-  
-  output$teamStatInfo <- renderTable({
-    if(is.null(input$teamStatClick$x)) return("NULL")
-    else {
-      combined$gameweek <- gsub("[^0-9.-]", "", combined$gameweek)
-      combined$gameweek <- as.numeric(combined$gameweek)
-      df <- melt(combined, id.vars = c("gameweek", "teams", "opposition"), measure.vars = c("goals", "shotsOnTarget", "goalCreatingActions", "shotCreatingActions"))
-      df <- aggregate(df$value, by = list(df$teams, df$gameweek, df$variable, df$opposition), FUN = sum)
-      colnames(df) <- c("teams", "gameweek", "variable", "opposition", "value")
-      
-      df2 <- brushedPoints(df, input$teamStatBrush)
-      df2 <- dcast(df2, variable ~ gameweek, value.var = c("value"))
-      df2
-    }
-  })
-  
-  output$teamFixtures <- renderDataTable({
-    #Return a data table with teams 
-    if(is.null(input$teamStatClick$x)) {
-      colnames(combined)[colnames(combined) == "goals"] = "GLS"
-      colnames(combined)[colnames(combined) == "shotsOnTarget"] = "SOT"
-      colnames(combined)[colnames(combined) == "goalCreatingActions"] = "GCA"
-      colnames(combined)[colnames(combined) == "shotCreatingActions"] = "SCA"
-      df <- melt(combined, id.vars = c("teams"), measure.vars = c("GLS", "SOT", "GCA", "SCA"))
-      df <- aggregate(df$value, by = list(df$teams, df$variable), FUN = sum)
-      colnames(df) <- c("teams", "variable", "value")
-      dcast(df, teams ~ variable, value.var = c("value"))
-    }
-    else {
-      combined$gameweek <- gsub("[^0-9.-]", "", combined$gameweek)
-      combined$gameweek <- as.numeric(combined$gameweek)
-      df <- melt(combined, id.vars = c("gameweek", "teams"), measure.vars = c("goals", "shotsOnTarget", "goalCreatingActions", "shotCreatingActions"))
-      df <- aggregate(df$value, by = list(df$teams, df$gameweek, df$variable), FUN = sum)
-      colnames(df) <- c("teams", "gameweek", "variable", "value")
-      df <- brushedPoints(df, input$teamStatBrush)
-
-      #Set variable to be oppositions
-      df2 <- currentSeason[,c("Wk", "Home", "Score", "Away")]
-      df2$Wk <- gsub("[^0-9.-]", "", df2$Wk)
-      df2[which(df2$Home == df$teams | df2$Away == df$teams),]
-    }
-  })
-  
-  
-  output$playerStat <- renderPlot ({
-    if(input$player == " ") {
-      combined$gameweek <- gsub("[^0-9.-]", "", combined$gameweek)
-      combined$gameweek <- as.numeric(combined$gameweek)
-      df <- combined[which(combined$teams == input$team), ]
-      df <- melt(df, id.vars = c("gameweek", "players"), measure.vars = c("goals", "shotsOnTarget", "goalCreatingActions", "shotCreatingActions"))
-      df <- aggregate(df$value, by = list(df$players, df$gameweek, df$variable), FUN = sum)
-      colnames(df) <- c("players", "gameweek", "variable", "value")
-      g <- ggplot(data = df, aes(x = gameweek, y = value, color = variable)) + geom_point() + geom_line()
-      g + facet_wrap(~players)
-    }
-    
-    if (input$player != " ") {
-      combined$gameweek <- gsub("[^0-9.-]", "", combined$gameweek)
-      combined$gameweek <- as.numeric(combined$gameweek)
-      df1 <- melt(combined, id.vars = c("gameweek", "Pos"), measure.vars = c("goals", "shotsOnTarget", "goalCreatingActions", "shotCreatingActions"))
-      df1 <- aggregate(df1$value, by = list(df1$gameweek, df1$Pos, df1$variable), FUN = mean)
-      colnames(df1) <- c("Gameweek", "Position", "Variable", "Value")
-      
-      df2 <- combined[which(combined$players == input$player),]
-      df2 <- melt(df2, id.vars = c("gameweek", "Pos"), measure.vars = c("goals", "shotsOnTarget", "goalCreatingActions", "shotCreatingActions"))
-      colnames(df2) <- c("Gameweek", "Position", "Variable", "Value")
-      ggplot() + 
-        geom_line(data = df1[which(df1$Position == unique(df2$Position)),], aes(x = Gameweek, y = Value), color = "red") +
-        geom_line(data = df2, aes(x = Gameweek, y = Value), color = "blue") +
-        facet_wrap(~Variable)
-      
-    }
-  })
-  
-  output$h2hviz1offense <- renderPlot ({
-    if(input$teamsOrPlayers == "Players") {
-      colnames(combined)[colnames(combined) == "goals"] = "GLS"
-      colnames(combined)[colnames(combined) == "shotsOnTarget"] = "SOT"
-      colnames(combined)[colnames(combined) == "goalCreatingActions"] = "GCA"
-      colnames(combined)[colnames(combined) == "shotCreatingActions"] = "SCA"
-      df1 <- combined[which(combined$players == input$h2hPlayers1), ]
-      df1 <- melt(df1, id.vars = c("players", "gameweek"), measure.vars = c("GLS", "SOT", "GCA", "SCA"))
-      df1 <- aggregate(df1$value, by = list(df1$players, df1$gameweek, df1$variable), FUN = sum)
-      colnames(df1) <- c("players", "gameweek", "variable", "value")
-      ggplot(data = df1, aes(x = gameweek, y = value, color = variable)) + geom_point() + geom_line() + xlab(paste(input$h2hPlayers1))
-    }
-  })
-  
-  output$h2hviz2offense <- renderPlot ({
-    if(input$teamsOrPlayers == "Players") {
-      colnames(combined)[colnames(combined) == "goals"] = "GLS"
-      colnames(combined)[colnames(combined) == "shotsOnTarget"] = "SOT"
-      colnames(combined)[colnames(combined) == "goalCreatingActions"] = "GCA"
-      colnames(combined)[colnames(combined) == "shotCreatingActions"] = "SCA"
-      df1 <- combined[which(combined$players == input$h2hPlayers2), ]
-      df1 <- melt(df1, id.vars = c("players", "gameweek"), measure.vars = c("GLS", "SOT", "GCA", "SCA"))
-      df1 <- aggregate(df1$value, by = list(df1$players, df1$gameweek, df1$variable), FUN = sum)
-      colnames(df1) <- c("players", "gameweek", "variable", "value")
-      ggplot(data = df1, aes(x = gameweek, y = value, color = variable)) + geom_point() + geom_line() + xlab(paste(input$h2hPlayers2))
-    }
-  })
-    
-}
-
-shinyApp(ui, server)
-
-```
-
-
-Project prediction
-```{r}
-###PLAYER#### 
-#Gather each gameweek data set.
-#Use that model to create a training data set.
-#Option 1: For testing, we can use the average of each player's data and cluster together to see which players have the highest chance of goal creating actions or scoring a goal as well.
-#Option 2: Determine the significant factors by using the p-values after doing regression for the goal creating actions. Use those significant factors for poisson models.
-
-
-#####TEAM####
-#Use opposition average goals conceded as a factor for players goal prediction and score prediction as well.
-
-df <- read.csv("previousGames.csv")
-df <-
-  df %>% separate(Score,
-                     into = c('Home Score', 'Away Score'),
-                     sep = "–")
-df$`Home Score` <- as.numeric(df$`Home Score`)
-df$`Away Score` <- as.numeric(df$`Away Score`)
-df$Date <- as.Date(df$Date)
-
-#Identifying significant factors
-#Divide by looking into different times.
-  #Make one model with all the data
-  #Make another model with data from the last two seasons.
-
-####Prediction based on last two seasons####
-dfLasttwo <- df %>%
-  select(Date, Home, Away, `Home Score`, `Away Score`) %>%
-  filter(Date >= "2019-08-05" & Date <= Sys.Date())
-
-dfLasttwo$Result <- ifelse(dfLasttwo$`Home Score` > dfLasttwo$`Away Score`, "Home Win",
-                           ifelse(dfLasttwo$`Home Score` < dfLasttwo$`Away Score`, "Away Win",
-                                  "Draw"))
-dfLasttwo$Total <- dfLasttwo$`Home Score` + dfLasttwo$`Away Score`
-dfLasttwo$Result <- as.factor(dfLasttwo$Result)
-dfLasttwo$Home <- as.factor(dfLasttwo$Home)
-dfLasttwo$Away <- as.factor(dfLasttwo$Away)
-
-####poisson distribution##########
-home <- dfLasttwo[which(dfLasttwo$Home == "Manchester Utd"),]
-away <- dfLasttwo[which(dfLasttwo$Away == "Wolves"),]
-
-
-homeScorePct <- ppois(c(0,1,2,3), lambda = mean(home$`Home Score`), lower = FALSE)
-homeConcedePct <- ppois(c(0,1,2,3), lambda = mean(home$`Away Score`), lower = FALSE)
-
-awayScorePct <- ppois(c(0,1,2,3), lambda = mean(away$`Away Score`), lower = FALSE)
-awayConcedePct <- ppois(c(0,1,2,3), lambda = mean(away$`Home Score`), lower = FALSE)
-
-homeScorePct
-homeConcedePct
-awayScorePct
-awayConcedePct
-########poisson distribution###########
-
-#######Bayesian theorem############
-#Use poisson distribution and utilize this theorem.
-###########Bayesian theorem##############
-
-dfLasttwo <- dfLasttwo[,c("Home", "Away", "Total")]
-
-a1 <- createDataPartition(dfLasttwo$Total, p=0.8, list = FALSE)
-train1 <- dfLasttwo[a1,]
-test1 <- dfLasttwo[-a1,]
-teams <- data.frame(
-  Home = as.factor("Manchester Utd"),
-  Away = as.factor("Leeds United")
-)
-
-model1 <- train(Total ~., data = train1, method = "lm")
-predict(model1, teams)
-#confusionMatrix(predictions1, test1$Result)
-summary(model1)
-RMSE(test1$Total, predictions1)
-
-x <- rbind(dfLasttwo %>%
-  filter(Home == "Manchester Utd" & Away == "Chelsea"),
-  dfLasttwo %>%
-    filter(Home == "Chelsea" & Away == "Manchester Utd"))
-####Prediction based on all previous seasons###
-dffull <- df %>%
-  select(Home, Away, `Home Score`, `Away Score`)
-dffull$Result <- ifelse(dffull$`Home Score` > dffull$`Away Score`, "Home Win",
-                           ifelse(dffull$`Home Score` < dffull$`Away Score`, "Away Win",
-                                  "Draw"))
-dffull$Total <- df$`Home Score` + df$`Away Score`
-dffull$Result <- as.factor(dffull$Result)
-dffull$Home <- as.factor(dffull$Home)
-dffull$Away <- as.factor(dffull$Away)
-dffull <- dffull[,c("Home", "Away", "Total")]
-
-a2 <- createDataPartition(dffull$Total, p=0.8, list = FALSE)
-train2 <- dffull[a2,]
-test2 <- dffull[-a2,]
-teams <- data.frame(
-  Home = as.factor("Leicester City"),
-  Away = as.factor("Wolves")
-)
-model2 <- train(Total ~., data = train2, method = "lm")
-predict(model2, teams)
-#confusionMatrix(predictions2, test$Result)
-
-RMSE(predictions2, test2$Total)
-
 ```
 
