@@ -11,11 +11,31 @@
 "10","Gameweek 1","Sun","2022-08-07","16:30","West-Ham-United",0.4,"0–2",2.3,"Manchester-City","62,443","London Stadium","Michael Oliver","Match Report",NA
 "12","Gameweek 2","Sat","2022-08-13","12:30","Aston-Villa",1.7,"2–1",1.4,"Everton","41,883","Villa Park","Michael Oliver","Match Report",NA
 "13","Gameweek 2","Sat","2022-08-13","15:00","Arsenal",2.6,"4–2",0.6,"Leicester-City","60,033","Emirates Stadium","Darren England","Match Report",NA
-"14","Gameweek 2","Sat","2022-08-13","15:00","Manchester-City",1.6,"4–0",0.1,"Bournemouth","","Etihad Stadium","David Coote","Match Report",NA
-"15","Gameweek 2","Sat","2022-08-13","15:00","Southampton",1,"2–2",2.1,"Leeds-United","","St. Mary's Stadium","Tony Harrington","Match Report",NA
+"14","Gameweek 2","Sat","2022-08-13","15:00","Manchester-City",1.6,"4–0",0.1,"Bournemouth","53,453","Etihad Stadium","David Coote","Match Report",NA
+"15","Gameweek 2","Sat","2022-08-13","15:00","Southampton",1,"2–2",2.1,"Leeds-United","30,815","St. Mary's Stadium","Tony Harrington","Match Report",NA
 "16","Gameweek 2","Sat","2022-08-13","15:00","Wolverhampton-Wanderers",0.7,"0–0",1.2,"Fulham","31,178","Molineux Stadium","John Brooks","Match Report",NA
 "17","Gameweek 2","Sat","2022-08-13","15:00","Brighton-and-Hove-Albion",1,"0–0",0.2,"Newcastle-United","31,552","The American Express Community Stadium","Graham Scott","Match Report",NA
-"18","Gameweek 2","Sat","2022-08-13","17:30","Brentford",1.8,"4–0",0.8,"Manchester-United","","Brentford Community Stadium","Stuart Attwell","Match Report",NA
+"18","Gameweek 2","Sat","2022-08-13","17:30","Brentford",1.8,"4–0",0.8,"Manchester-United","17,000","Brentford Community Stadium","Stuart Attwell","Match Report",NA
 "19","Gameweek 2","Sun","2022-08-14","14:00","Nottingham-Forest",1.4,"1–0",2.1,"West-Ham-United","29,281","The City Ground","Robert Jones","Match Report",NA
 "20","Gameweek 2","Sun","2022-08-14","16:30","Chelsea",1.4,"2–2",1.1,"Tottenham-Hotspur","39,946","Stamford Bridge","Anthony Taylor","Match Report",NA
-"21","Gameweek 2","Mon","2022-08-15","20:00","Liverpool",1.7,"1–1",1.5,"Crystal-Palace","","Anfield","Paul Tierney","Match Report",NA
+"21","Gameweek 2","Mon","2022-08-15","20:00","Liverpool",1.7,"1–1",1.5,"Crystal-Palace","52,970","Anfield","Paul Tierney","Match Report",NA
+"23","Gameweek 3","Sat","2022-08-20","12:30","Tottenham-Hotspur",1.5,"1–0",0.8,"Wolverhampton-Wanderers","61,298","Tottenham Hotspur Stadium","Simon Hooper","Match Report",NA
+"24","Gameweek 3","Sat","2022-08-20","15:00","Everton",1.8,"1–1",1,"Nottingham-Forest","39,271","Goodison Park","Andre Marriner","Match Report",NA
+"25","Gameweek 3","Sat","2022-08-20","15:00","Crystal-Palace",3.1,"3–1",1.2,"Aston-Villa","22,012","Selhurst Park","Andy Madley","Match Report",NA
+"26","Gameweek 3","Sat","2022-08-20","15:00","Leicester-City",0.3,"1–2",0.7,"Southampton","30,850","King Power Stadium","Michael Salisbury","Match Report",NA
+"27","Gameweek 3","Sat","2022-08-20","15:00","Fulham",1.9,"3–2",1.5,"Brentford","21,798","Craven Cottage","Peter Bankes","Match Report",NA
+"28","Gameweek 3","Sat","2022-08-20","17:30","Bournemouth",0.3,"0–3",1.8,"Arsenal","10,423","Vitality Stadium","Craig Pawson","Match Report",NA
+"29","Gameweek 3","Sun","2022-08-21","14:00","West-Ham-United",0.7,"0–2",1.6,"Brighton-and-Hove-Albion","62,449","London Stadium","Anthony Taylor","Match Report",NA
+"30","Gameweek 3","Sun","2022-08-21","14:00","Leeds-United",1.9,"3–0",0.7,"Chelsea","36,372","Elland Road","Stuart Attwell","Match Report",NA
+"31","Gameweek 3","Sun","2022-08-21","16:30","Newcastle-United",1.8,"3–3",2.7,"Manchester-City","52,258","St. James' Park","Jarred Gillett","Match Report",NA
+"32","Gameweek 3","Mon","2022-08-22","20:00","Manchester-United",1.7,"2–1",1.5,"Liverpool","","Old Trafford","Michael Oliver","Match Report",NA
+"34","Gameweek 4","Sat","2022-08-27","12:30","Southampton",1.6,"0–1",1.1,"Manchester-United","31,196","St. Mary's Stadium","Andy Madley","Match Report",NA
+"35","Gameweek 4","Sat","2022-08-27","15:00","Brighton-and-Hove-Albion",1.9,"1–0",1.4,"Leeds-United","30,953","The American Express Community Stadium","Michael Salisbury","Match Report",NA
+"36","Gameweek 4","Sat","2022-08-27","15:00","Manchester-City",2.5,"4–2",0.1,"Crystal-Palace","","Etihad Stadium","Darren England","Match Report",NA
+"37","Gameweek 4","Sat","2022-08-27","15:00","Liverpool",3.4,"9–0",0.4,"Bournemouth","","Anfield","Stuart Attwell","Match Report",NA
+"38","Gameweek 4","Sat","2022-08-27","15:00","Brentford",2.8,"1–1",1.5,"Everton","17,009","Brentford Community Stadium","John Brooks","Match Report",NA
+"39","Gameweek 4","Sat","2022-08-27","15:00","Chelsea",1.9,"2–1",1.7,"Leicester-City","39,953","Stamford Bridge","Paul Tierney","Match Report",NA
+"40","Gameweek 4","Sat","2022-08-27","17:30","Arsenal",2.4,"2–1",1.1,"Fulham","60,164","Emirates Stadium","Jarred Gillett","Match Report",NA
+"41","Gameweek 4","Sun","2022-08-28","14:00","Wolverhampton-Wanderers",0.8,"1–1",2,"Newcastle-United","","Molineux Stadium","Peter Bankes","Match Report",NA
+"42","Gameweek 4","Sun","2022-08-28","14:00","Aston-Villa",0.6,"0–1",0.4,"West-Ham-United","41,796","Villa Park","David Coote","Match Report",NA
+"43","Gameweek 4","Sun","2022-08-28","16:30","Nottingham-Forest",1,"0–2",2.7,"Tottenham-Hotspur","29,296","The City Ground","Craig Pawson","Match Report",NA
