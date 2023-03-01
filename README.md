@@ -6,6 +6,8 @@ Current Process is as follows:
   * Data is web-scraped for each gameweek from the following source: https://fbref.com/en/comps/9/Premier-League-Stats
   * Data wrangling + cleaning
   * Visualziation regarding the performance of each team in the premier league for this season.
+
+
 What is being worked on:
  * Poisson-regression model.
  * Packaging the retrieval method of getting the data into a restful api for faster performance.
