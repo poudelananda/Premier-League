@@ -8,6 +8,3 @@ Current Process is as follows:
   * Visualziation regarding the performance of each team in the premier league for this season.
 
 
-What is being worked on:
- * Poisson-regression model.
- * Packaging the retrieval method of getting the data into a restful api for faster performance.
