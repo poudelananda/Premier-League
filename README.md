@@ -1,5 +1,5 @@
 # PL-22-23
-RShiny dashboard which contains analytics/visualziations from this season's English Premier League games.
+RShiny dashboard which contains analytics/visualizations from this season's English Premier League games.
 https://poudelap.shinyapps.io/PLAnalytics/
 
 Current Process is as follows:
